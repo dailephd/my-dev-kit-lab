@@ -261,6 +261,275 @@ export function validateKitImportProof(raw: unknown, expected: { snapshotId: str
   return r;
 }
 
+export type KitSourceReferencePremise = {
+  role: "config" | "package-metadata" | "candidate" | "path";
+  path: string;
+  state: "absent" | "file" | "directory";
+  contentSha256: string | null;
+};
+
+export type KitOrdinarySourceReference = {
+  premiseRefs: readonly KitSourceReferencePremise[];
+  reasonCode: string | null;
+  selectedTargetUpperBound?: readonly string[];
+  qualifiedSourceReferencePath?: string;
+  applicableSourceReferenceAbsent?: true;
+};
+
+const SOURCE_REFERENCE_KEYS = [
+  "schemaVersion", "profile", "pathIdentityProfile", "snapshotId", "selectionFingerprint",
+  "selectedDomainDigest", "originFile", "originContentSha256", "importFactId", "sourceSpecifier",
+  "resolutionPlatform", "candidateEnumerationComplete", "candidateDomain", "qualifiedReference",
+  "premiseRefs", "reasonCode",
+] as const;
+
+function closedReferenceObject(raw: unknown, keys: readonly string[], label: string): JsonObject {
+  const object = asObject(raw, label, "artifact-invalid");
+  if (Object.keys(object).length !== keys.length || keys.some(key => !Object.hasOwn(object, key))) {
+    fail("artifact-invalid", `${label} has unexpected or missing fields.`);
+  }
+  return object;
+}
+
+function referencePath(raw: unknown): string {
+  const value = validateKitRelativePath(raw, "source reference path");
+  if (Buffer.byteLength(value, "utf8") > 4096 || Buffer.from(value).toString("utf8") !== value || /[\x00-\x1f]/.test(value) ||
+      (process.platform === "win32" && value.split("/").some(segment =>
+        /[<>:"|?*]|[ .]$/.test(segment) ||
+        /^(?:con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\.|$)/i.test(segment)))) {
+    fail("path-invalid", "Invalid source reference path identity.");
+  }
+  return value;
+}
+
+function validateSourceReferencePremises(raw: unknown, selected: ReadonlyMap<string, KitFileRecord>) {
+  if (!Array.isArray(raw) || raw.length > 1024) fail("artifact-invalid", "Invalid source reference premise budget.");
+  const byPhysicalPath = new Map<string, KitSourceReferencePremise>();
+  const candidates = new Map<string, KitSourceReferencePremise>();
+  const fold = (name: string) => process.platform === "win32" ? name.toLowerCase() : name;
+  const selectedIdentities = new Map([...selected.keys()].map(filePath => [fold(filePath), filePath]));
+  let previous = "";
+  const premiseRefs = raw.map((rawPremise): KitSourceReferencePremise => {
+    const p = closedReferenceObject(rawPremise, ["role", "path", "state", "contentSha256"], "source reference premise");
+    const role = oneOf(p.role, ["config", "package-metadata", "candidate", "path"] as const, "premise role", "artifact-invalid");
+    const state = oneOf(p.state, ["absent", "file", "directory"] as const, "premise state", "artifact-invalid");
+    const filePath = referencePath(p.path);
+    const contentSha256 = p.contentSha256;
+    if (state === "file" ? typeof contentSha256 !== "string" || !SHA256_PATTERN.test(contentSha256) : contentSha256 !== null) {
+      fail("artifact-invalid", "Invalid source reference premise hash.");
+    }
+    const key = role + "\0" + filePath;
+    const physicalKey = fold(filePath);
+    const prior = byPhysicalPath.get(physicalKey);
+    const selectedPath = selectedIdentities.get(physicalKey);
+    const record = selected.get(filePath);
+    if (key <= previous || (prior && (prior.path !== filePath || prior.state !== state || prior.contentSha256 !== contentSha256)) ||
+        (selectedPath !== undefined && selectedPath !== filePath) ||
+        (record && (state !== "file" || record.contentSha256 !== null && record.contentSha256 !== contentSha256))) {
+      fail("artifact-invalid", "Duplicate, noncanonical or contradictory source reference premise.");
+    }
+    previous = key;
+    const premise = { role, path: filePath, state, contentSha256: contentSha256 as string | null };
+    byPhysicalPath.set(physicalKey, premise);
+    if (role === "candidate") candidates.set(filePath, premise);
+    return premise;
+  });
+  return { premiseRefs, candidates };
+}
+
+const externalSelectionIdentities = new WeakMap<KitSourceEvidence, {
+  selected: ReadonlyMap<string, KitFileRecord>;
+  digest: string;
+  packagePrefixes: ReadonlySet<string>;
+}>();
+
+export function validateKitDirectExternalReference(
+  raw: unknown, proof: KitImportProof, evidence: KitSourceEvidence, fact: KitFact,
+): readonly KitSourceReferencePremise[] {
+  const r = closedReferenceObject(raw, [
+    "schemaVersion", "profile", "pathIdentityProfile", "snapshotId", "selectionFingerprint", "selectedDomainDigest",
+    "originFile", "originContentSha256", "importFactId", "sourceSpecifier", "resolutionPlatform", "resolutionMode",
+    "packageName", "packageRoot", "resolvedEntries", "selectedDomainExcluded", "premiseRefs",
+  ], "direct external reference proof");
+  const origin = evidence.fileEvidence.get(fact.span.path)?.record;
+  const fold = (value: string) => process.platform === "win32" ? value.toLowerCase() : value;
+  let selection = externalSelectionIdentities.get(evidence);
+  if (!selection) {
+    const selected = new Map(evidence.inventory.map(file => [file.path, file]));
+    const packagePrefixes = new Set<string>();
+    for (const file of selected.keys()) {
+      const segments = fold(file).split("/");
+      const start = segments.indexOf("node_modules");
+      if (start < 0) continue;
+      for (let end = start + 1; end <= segments.length; end++) packagePrefixes.add(segments.slice(0, end).join("/"));
+    }
+    selection = { selected, digest: sha256Hex(JSON.stringify([...selected.keys()].sort())), packagePrefixes };
+    externalSelectionIdentities.set(evidence, selection);
+  }
+  const packagePattern = /^(?<name>(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*)(?:\/[a-zA-Z0-9_][a-zA-Z0-9_.-]*)*$/;
+  const name = fact.sourceSpecifier && packagePattern.exec(fact.sourceSpecifier)?.groups?.name;
+  if (evidence.artifactSchemaVersion !== "1.2.0" || r.schemaVersion !== "1.0.0" ||
+      r.profile !== "js-ts-direct-external-selected-exclusion-v1" || r.pathIdentityProfile !== "selected-source-path-v1" ||
+      r.resolutionPlatform !== (process.platform === "win32" ? "win32" : "posix") ||
+      (r.resolutionMode !== "nodenext-esm" && r.resolutionMode !== "bundler-esm") ||
+      !evidence.traversalComplete || !evidence.coverage.inventoryComplete || !evidence.coverage.exclusionsAreExplicit ||
+      !proof.selectionComplete || proof.status === "present" || proof.candidatePaths.length || fact.targetPaths?.length ||
+      !origin?.contentSha256 || !["typescript", "javascript"].includes(origin.language) ||
+      !(fact.kind === "import" || fact.kind === "export" && fact.exportOrigin === "re-export") ||
+      r.snapshotId !== evidence.snapshotId || r.snapshotId !== proof.snapshotId ||
+      r.selectionFingerprint !== evidence.source.selectionFingerprint ||
+      r.selectedDomainDigest !== selection.digest ||
+      r.originFile !== fact.span.path || r.originFile !== proof.originFile || r.originContentSha256 !== origin.contentSha256 ||
+      r.importFactId !== fact.id || r.importFactId !== proof.importFactId ||
+      r.sourceSpecifier !== fact.sourceSpecifier || r.sourceSpecifier !== proof.sourceSpecifier ||
+      !name || r.packageName !== name || r.selectedDomainExcluded !== true ||
+      !Array.isArray(r.resolvedEntries) || !r.resolvedEntries.length || r.resolvedEntries.length > 2 ||
+      Buffer.byteLength(JSON.stringify(r), "utf8") > 1048576) {
+    fail("artifact-invalid", "Unqualified direct external reference scope or identity.");
+  }
+  const packageRoot = referencePath(r.packageRoot);
+  const { premiseRefs, candidates } = validateSourceReferencePremises(r.premiseRefs, selection.selected);
+  const earlierRoots: string[] = [];
+  for (let directory = path.posix.dirname(origin.path);; directory = path.posix.dirname(directory)) {
+    const candidate = path.posix.join(directory, "node_modules", name);
+    if (candidate === packageRoot) break;
+    if (directory === ".") fail("artifact-invalid", "External package does not belong to an origin ancestor.");
+    earlierRoots.push(candidate);
+  }
+  const pathStates = new Map(premiseRefs.filter(p => p.role === "path").map(p => [p.path, p.state]));
+  if (selection.packagePrefixes.has(fold(packageRoot)) ||
+      pathStates.get(packageRoot) !== "directory" || earlierRoots.some(root => pathStates.get(root) !== "absent") ||
+      !premiseRefs.some(p => p.role === "package-metadata" && p.path === packageRoot + "/package.json" && p.state === "file") ||
+      !premiseRefs.some(p => p.role === "config" && p.state === "file")) {
+    fail("artifact-invalid", "External package is missing disjointness or routing premises.");
+  }
+  let previous = "";
+  const roles = new Set<string>();
+  for (const rawEntry of r.resolvedEntries) {
+    const entry = closedReferenceObject(rawEntry, ["path", "contentSha256", "roles"], "external reference entry");
+    const file = referencePath(entry.path);
+    const candidate = candidates.get(file);
+    if (file <= previous || !file.startsWith(packageRoot + "/") || candidate?.state !== "file" ||
+        candidate.contentSha256 !== entry.contentSha256 || !Array.isArray(entry.roles) || !entry.roles.length) {
+      fail("artifact-invalid", "Invalid authenticated external entry.");
+    }
+    previous = file;
+    let previousRole = "";
+    for (const role of entry.roles) {
+      if (typeof role !== "string" || !["source", "type", "value"].includes(role) || role <= previousRole || roles.has(role) ||
+          (role === "value" && !/\.(?:mjs|cjs|js)$/.test(file)) ||
+          (role === "type" && !/\.d\.[cm]?ts$/.test(file))) fail("artifact-invalid", "Invalid external entry role.");
+      previousRole = role;
+      roles.add(role);
+    }
+  }
+  if (!roles.has("value") || Number(roles.has("source")) + Number(roles.has("type")) !== 1) {
+    fail("artifact-invalid", "External exclusion requires source/type and value routes.");
+  }
+  return premiseRefs;
+}
+
+export function validateKitOrdinarySourceReference(
+  raw: unknown, proof: KitImportProof, evidence: KitSourceEvidence, fact: KitFact,
+): KitOrdinarySourceReference {
+  const r = closedReferenceObject(raw, SOURCE_REFERENCE_KEYS, "source reference proof");
+  const origin = evidence.fileEvidence.get(fact.span.path);
+  const selected = new Map(evidence.inventory.map(file => [file.path, file]));
+  const originPath = referencePath(r.originFile);
+  if (evidence.artifactSchemaVersion !== "1.2.0" || proof.schemaVersion !== "1.1.0" ||
+      r.schemaVersion !== "1.0.0" || r.profile !== "js-ts-selected-source-reference-v1" ||
+      r.pathIdentityProfile !== "selected-source-path-v1" ||
+      r.resolutionPlatform !== (process.platform === "win32" ? "win32" : "posix")) {
+    fail("schema-mismatch", "Unqualified ordinary source reference protocol.");
+  }
+  if (!origin || !["typescript", "javascript"].includes(origin.record.language) ||
+      !(fact.kind === "import" || fact.kind === "export" && fact.exportOrigin === "re-export") ||
+      !fact.sourceSpecifier || Buffer.byteLength(fact.sourceSpecifier, "utf8") > 4096 ||
+      r.snapshotId !== proof.snapshotId || r.snapshotId !== evidence.snapshotId ||
+      originPath !== fact.span.path || originPath !== proof.originFile ||
+      r.importFactId !== fact.id || r.importFactId !== proof.importFactId ||
+      r.sourceSpecifier !== fact.sourceSpecifier || r.sourceSpecifier !== proof.sourceSpecifier ||
+      typeof r.originContentSha256 !== "string" || !SHA256_PATTERN.test(r.originContentSha256) ||
+      r.originContentSha256 !== origin.record.contentSha256 ||
+      r.originContentSha256 !== selected.get(originPath)?.contentSha256 ||
+      typeof r.selectionFingerprint !== "string" || !SHA256_PATTERN.test(r.selectionFingerprint) ||
+      r.selectionFingerprint !== evidence.source.selectionFingerprint ||
+      r.selectedDomainDigest !== sha256Hex(JSON.stringify([...selected.keys()].sort()))) {
+    fail("artifact-invalid", "Source reference proof differs from validated origin or selection.");
+  }
+  if (!Array.isArray(r.premiseRefs) || r.premiseRefs.length > 1024 ||
+      typeof r.candidateEnumerationComplete !== "boolean" ||
+      (Array.isArray(r.candidateDomain) && r.candidateDomain.length > 256)) {
+    fail("artifact-invalid", "Invalid source reference proof shape or budget.");
+  }
+  if (Buffer.byteLength(JSON.stringify(r), "utf8") > 1048576) {
+    fail("artifact-invalid", "Source reference proof exceeds the serialized byte budget.");
+  }
+
+  const { premiseRefs, candidates } = validateSourceReferencePremises(r.premiseRefs, selected);
+
+  if (!r.candidateEnumerationComplete) {
+    if (r.candidateDomain !== null || r.qualifiedReference !== null || typeof r.reasonCode !== "string" || !r.reasonCode.trim()) {
+      fail("artifact-invalid", "Inconsistent incomplete ordinary source reference proof.");
+    }
+    return { premiseRefs, reasonCode: r.reasonCode };
+  }
+  if (!Array.isArray(r.candidateDomain) || !r.candidateDomain.length || r.reasonCode !== null ||
+      !proof.selectionComplete || !evidence.traversalComplete || !evidence.coverage.inventoryComplete ||
+      !evidence.coverage.exclusionsAreExplicit || selected.size !== evidence.coverage.selectedFileCount ||
+      selected.size !== evidence.coverage.recordedFileCount) {
+    fail("artifact-invalid", "Invalid complete ordinary source reference domain.");
+  }
+  const selectedTargetUpperBound: string[] = [];
+  let previous = "";
+  for (const item of r.candidateDomain) {
+    const filePath = referencePath(item);
+    const premise = candidates.get(filePath);
+    const record = selected.get(filePath);
+    if (filePath <= previous || !premise || (record
+      ? premise.state !== "file" || !record.contentSha256 || !/\.(?:tsx?|jsx?|mts|cts|mjs|cjs)$/i.test(filePath)
+      : premise.state !== "absent")) {
+      fail("artifact-invalid", "Unqualified ordinary source reference candidate.");
+    }
+    previous = filePath;
+    if (record) selectedTargetUpperBound.push(filePath);
+  }
+  if (proof.status === "proven-missing" && selectedTargetUpperBound.length) {
+    fail("artifact-invalid", "Legacy absence contradicts the selected source reference domain.");
+  }
+  // Probe-only candidate premises may include other absent paths, but a
+  // competing physical candidate cannot be passed off as mere probe evidence.
+  for (const premise of candidates.values()) {
+    if (premise.state !== "absent" && !selectedTargetUpperBound.includes(premise.path)) {
+      fail("artifact-invalid", "Existing candidate is outside the qualified selected domain.");
+    }
+  }
+  if (fact.targetPaths?.some(target => !selectedTargetUpperBound.includes(target))) {
+    fail("artifact-invalid", "Ordinary source reference domain contradicts indexed targets.");
+  }
+
+  if (r.qualifiedReference === null) {
+    // A complete selected bound can be empty even when the destination lies
+    // outside this predicate's roots. Physical absence also needs the live
+    // candidate premises, which the reader rechecks before exposing it.
+    const absent = selectedTargetUpperBound.length === 0 &&
+      /^\.\.?\//.test(fact.sourceSpecifier) &&
+      (proof.status === "indeterminate" || proof.status === "proven-missing") &&
+      r.candidateDomain.every(candidate => evidence.source.sourceRoots.some(root =>
+        root === "." || candidate === root || candidate.startsWith(root + "/")));
+    return { premiseRefs, reasonCode: null, selectedTargetUpperBound,
+      ...(absent && { applicableSourceReferenceAbsent: true }) };
+  }
+  const positive = closedReferenceObject(r.qualifiedReference, ["targetPath", "targetContentSha256", "referenceKind"], "qualified source reference");
+  const target = referencePath(positive.targetPath);
+  if (positive.referenceKind !== "selected-source-reference" ||
+      selectedTargetUpperBound.length !== 1 || selectedTargetUpperBound[0] !== target ||
+      positive.targetContentSha256 !== selected.get(target)?.contentSha256) {
+    fail("artifact-invalid", "Invalid qualified selected source reference.");
+  }
+  return { premiseRefs, reasonCode: null, selectedTargetUpperBound, qualifiedSourceReferencePath: target };
+}
+
 export type KitSourceSelection = {
   projectRoot: string;
   sourceRoots: string[];
@@ -310,6 +579,31 @@ export type KitSourceSpan = {
   startColumn: number | null;
   endLine: number | null;
   endColumn: number | null;
+};
+
+type KitExactSpan = KitSourceSpan & { startColumn: number; endLine: number; endColumn: number };
+const TEST_MODIFIER_REASONS = [
+  "UNQUALIFIED_RUNNER_BINDING", "UNQUALIFIED_WRAPPER_REFERENCE", "UNSUPPORTED_MODIFIER_FORM",
+  "UNRESOLVED_BINDING_USE", "INCOMPLETE_SOURCE_ANALYSIS", "PROOF_BUDGET_EXCEEDED",
+] as const;
+
+export type KitTestModifierProof = {
+  originFile: string;
+  coverage: "complete" | "partial";
+  runnerBinding: {
+    kind: "direct-playwright" | "local-extended-playwright" | "imported-extended-playwright";
+    bindingSpan: KitExactSpan;
+    baseLocalName: string;
+    baseImportSpan: KitExactSpan;
+    extensionSpan: KitExactSpan | null;
+    wrapper: {
+      path: string;
+      exportBindingSpan: KitExactSpan;
+      reference: KitOrdinarySourceReference;
+    } | null;
+  };
+  observations: readonly { modifier: "skip" | "only"; calleeSpan: KitExactSpan; callSpan: KitExactSpan }[];
+  reasonCodes: readonly (typeof TEST_MODIFIER_REASONS)[number][];
 };
 
 export type KitAmbientClassification = {
@@ -388,12 +682,14 @@ export type KitFactPage = {
   status: "found" | "unsupported";
   file: KitFileRecord;
   facts: KitFact[];
+  testModifierProof?: JsonObject;
 };
 
 export type KitFileEvidence = {
   record: KitFileRecord;
   facts: KitFact[];
   factPages: number;
+  testModifierProof?: KitTestModifierProof;
 };
 
 // Everything the adapter needs, already validated.
@@ -987,7 +1283,7 @@ export function validateInventoryPage(raw: unknown, expected: { snapshotId: stri
 
 export function validateFactPage(
   raw: unknown,
-  expected: { snapshotId: string; pageIndex: number; path: string }
+  expected: { snapshotId: string; pageIndex: number; path: string; qualifiedTestModifierProof?: true }
 ): KitFactPage {
   const label = `fact page ${expected.pageIndex} of ${expected.path}`;
   const obj = asObject(raw, label, "page-invalid");
@@ -1009,7 +1305,159 @@ export function validateFactPage(
     if (fact.jvmDeclaration && (!/\.(java|kt)$/i.test(file.path) || fact.jvmDeclaration.packageName !== file.jvmPackageName)) fail("page-invalid", "Declaration package differs from its ordinary file identity.");
     if (file.capabilities.jvmDeclarations === "complete" && fact.kind === "declaration" && !fact.jvmDeclaration) fail("page-invalid", "Complete JVM declarations omit identity.");
   }
+  if (expected.qualifiedTestModifierProof && Object.hasOwn(obj, "testModifierProof")) {
+    if (expected.pageIndex !== 0 || status !== "found" || obj.schemaVersion !== KIT_SOURCE_PROOF_SCHEMA_VERSION ||
+        !isTestModifierSource(file)) {
+      fail("page-invalid", "Test modifier proof is outside its eligible first exact-file page.");
+    }
+    const testModifierProof = asObject(obj.testModifierProof, "test modifier proof", "page-invalid");
+    if (Buffer.byteLength(JSON.stringify(testModifierProof), "utf8") > 1024 * 1024) {
+      fail("page-invalid", "Test modifier proof exceeds its serialized byte budget.");
+    }
+    return { ...envelope, status, file, facts, testModifierProof };
+  }
   return { ...envelope, status, file, facts };
+}
+
+export function isTestModifierSource(file: KitFileRecord): boolean {
+  return !!file.contentSha256 && ["parsed", "partial"].includes(file.status) &&
+    ["typescript", "javascript"].includes(file.language) && file.analyzerId === "typescript-ast" &&
+    /\.(?:tsx?|jsx?|mts|cts|mjs|cjs)$/i.test(file.path);
+}
+
+function compareSpanStart(a: KitSourceSpan, b: KitSourceSpan): number {
+  return comparePosition(a.startLine, a.startColumn, b.startLine, b.startColumn);
+}
+
+function compareSpanEnd(a: KitExactSpan, b: KitExactSpan): number {
+  return comparePosition(a.endLine, a.endColumn, b.endLine, b.endColumn);
+}
+
+function spanContains(outer: KitSourceSpan, inner: KitExactSpan, strictStart: boolean): boolean {
+  return outer.path === inner.path && outer.startColumn !== null && outer.endLine !== null && outer.endColumn !== null &&
+    compareSpanStart(outer, inner) <= (strictStart ? -1 : 0) &&
+    comparePosition(outer.endLine, outer.endColumn, inner.endLine, inner.endColumn) >= 0;
+}
+
+function modifierSpan(raw: unknown, file: KitFileRecord, lines: readonly string[]): KitExactSpan {
+  const label = "test modifier proof span";
+  const s = closedReferenceObject(raw, ["path", "startLine", "startColumn", "endLine", "endColumn"], label);
+  const span = {
+    path: referencePath(s.path),
+    startLine: int(s, "startLine", label, "artifact-invalid"),
+    startColumn: int(s, "startColumn", label, "artifact-invalid"),
+    endLine: int(s, "endLine", label, "artifact-invalid"),
+    endColumn: int(s, "endColumn", label, "artifact-invalid"),
+  };
+  if (span.path !== file.path || span.startLine < 1 || span.endLine > lines.length ||
+      !validExpressionSpan(span) || span.startColumn > lines[span.startLine - 1]!.length ||
+      span.endColumn > lines[span.endLine - 1]!.length) {
+    fail("artifact-invalid", "Test modifier proof span is outside its authenticated source.");
+  }
+  return span;
+}
+
+// The producer attests to binding and AST semantics. Lab checks the wire data
+// against the traversed facts, selected identities and authenticated text bounds.
+export function validateKitTestModifierProof(
+  raw: JsonObject, origin: KitFileEvidence, evidence: KitSourceEvidence,
+  selected: ReadonlyMap<string, KitFileRecord>, selectedDomainDigest: string,
+  readSource: (file: KitFileRecord) => Buffer,
+): KitTestModifierProof {
+  const r = closedReferenceObject(raw, [
+    "schemaVersion", "profile", "snapshotId", "selectionFingerprint", "selectedDomainDigest",
+    "originFile", "originContentSha256", "coverage", "runnerBinding", "observations", "reasonCodes",
+  ], "test modifier proof");
+  const originFile = referencePath(r.originFile);
+  if (r.schemaVersion !== "1.0.0" || r.profile !== "js-ts-playwright-direct-extended-modifiers-v1" ||
+      evidence.artifactSchemaVersion !== KIT_SOURCE_PROOF_SCHEMA_VERSION || !evidence.traversalComplete ||
+      !evidence.coverage.inventoryComplete ||
+      r.snapshotId !== evidence.snapshotId || r.selectionFingerprint !== evidence.source.selectionFingerprint ||
+      r.selectedDomainDigest !== selectedDomainDigest || originFile !== origin.record.path ||
+      !isTestModifierSource(origin.record) || r.originContentSha256 !== origin.record.contentSha256 ||
+      r.originContentSha256 !== selected.get(originFile)?.contentSha256) {
+    fail("artifact-invalid", "Test modifier proof differs from the authenticated origin, selection or protocol.");
+  }
+  const coverage = oneOf(r.coverage, ["complete", "partial"] as const, "test modifier coverage", "artifact-invalid");
+  if (!Array.isArray(r.reasonCodes) || r.reasonCodes.length > TEST_MODIFIER_REASONS.length ||
+      !Array.isArray(r.observations) || r.observations.length > 1024) {
+    fail("artifact-invalid", "Invalid test modifier proof array or budget.");
+  }
+  const reasonCodes = r.reasonCodes.map(code => oneOf(code, TEST_MODIFIER_REASONS, "test modifier reason", "artifact-invalid"));
+  if (reasonCodes.some((code, index) => index > 0 && reasonCodes[index - 1]! >= code) ||
+      (coverage === "complete" ? reasonCodes.length !== 0 || origin.record.status !== "parsed" : reasonCodes.length === 0)) {
+    fail("artifact-invalid", "Inconsistent test modifier proof coverage and reasons.");
+  }
+
+  const b = closedReferenceObject(r.runnerBinding, [
+    "kind", "localName", "bindingSpan", "baseLocalName", "baseImportSpan", "extensionSpan", "wrapper",
+  ], "test modifier runner binding");
+  const kind = oneOf(b.kind, ["direct-playwright", "local-extended-playwright", "imported-extended-playwright"] as const,
+    "test modifier runner kind", "artifact-invalid");
+  const baseLocalName = str(b, "baseLocalName", "test modifier runner binding", "artifact-invalid");
+  if (b.localName !== "test" || (baseLocalName === "test") !== (kind === "direct-playwright") ||
+      (b.wrapper === null) !== (kind !== "imported-extended-playwright") ||
+      (b.extensionSpan === null) !== (kind === "direct-playwright")) {
+    fail("artifact-invalid", "Contradictory test modifier runner binding.");
+  }
+
+  // Match TypeScript's one-based lines and UTF-16 columns without parsing.
+  const sourceLines = (file: KitFileRecord) => readSource(file).toString("utf8").split(/\r\n|[\n\r\u2028\u2029]/);
+  const lines = sourceLines(origin.record);
+  const bindingSpan = modifierSpan(b.bindingSpan, origin.record, lines);
+  let wrapper: KitTestModifierProof["runnerBinding"]["wrapper"] = null;
+  let declarationSpan = bindingSpan;
+  let baseFile = origin.record;
+  let baseLines = lines;
+  if (kind === "imported-extended-playwright") {
+    const w = closedReferenceObject(b.wrapper, ["path", "contentSha256", "exportBindingSpan", "importTargetProof"],
+      "test modifier wrapper");
+    const wrapperPath = referencePath(w.path);
+    const selectedWrapper = selected.get(wrapperPath);
+    if (!selectedWrapper || wrapperPath === originFile || !isTestModifierSource(selectedWrapper) ||
+        selectedWrapper.status !== "parsed" || w.contentSha256 !== selectedWrapper.contentSha256) {
+      fail("artifact-invalid", "Test modifier wrapper differs from the authenticated selected file.");
+    }
+    const embedded = asObject(w.importTargetProof, "wrapper import target proof", "artifact-invalid");
+    const fact = origin.facts.find(item => item.id === embedded.importFactId);
+    if (!fact || fact.kind !== "import" || fact.extractionMethod !== "typescript-ast" ||
+        !fact.importedNames?.includes("test") || !spanContains(fact.span, bindingSpan, true) ||
+        comparePosition(fact.span.endLine!, fact.span.endColumn, bindingSpan.endLine, bindingSpan.endColumn) <= 0) {
+      fail("artifact-invalid", "Test modifier wrapper lacks the authenticated origin named import fact.");
+    }
+    const parent = validateKitImportProof(embedded, { snapshotId: evidence.snapshotId, fact, evidence });
+    const reference = validateKitOrdinarySourceReference(embedded.sourceReferenceProof, parent, evidence, fact);
+    if (reference.qualifiedSourceReferencePath !== wrapperPath) {
+      fail("artifact-invalid", "Test modifier wrapper is not the qualified source reference target.");
+    }
+    baseFile = selectedWrapper;
+    baseLines = sourceLines(baseFile);
+    declarationSpan = modifierSpan(w.exportBindingSpan, baseFile, baseLines);
+    wrapper = { path: wrapperPath, exportBindingSpan: declarationSpan, reference };
+  }
+  const baseImportSpan = modifierSpan(b.baseImportSpan, baseFile, baseLines);
+  const extensionSpan = b.extensionSpan === null ? null : modifierSpan(b.extensionSpan, baseFile, baseLines);
+  if (extensionSpan ? !spanContains(declarationSpan, extensionSpan, true) ||
+      (comparePosition(baseImportSpan.endLine, baseImportSpan.endColumn, declarationSpan.startLine, declarationSpan.startColumn) > 0 &&
+       comparePosition(declarationSpan.endLine, declarationSpan.endColumn, baseImportSpan.startLine, baseImportSpan.startColumn) > 0)
+    : compareSpanStart(bindingSpan, baseImportSpan) !== 0 || compareSpanEnd(bindingSpan, baseImportSpan) !== 0) {
+    fail("artifact-invalid", "Contradictory test modifier runner spans.");
+  }
+  const observations: KitTestModifierProof["observations"][number][] = [];
+  for (const item of r.observations) {
+    const o = closedReferenceObject(item, ["modifier", "calleeSpan", "callSpan"], "test modifier observation");
+    const modifier = oneOf(o.modifier, ["skip", "only"] as const, "test modifier", "artifact-invalid");
+    const calleeSpan = modifierSpan(o.calleeSpan, origin.record, lines);
+    const callSpan = modifierSpan(o.callSpan, origin.record, lines);
+    const prior = observations.at(-1)?.calleeSpan;
+    if (!spanContains(callSpan, calleeSpan, false) || compareSpanEnd(callSpan, calleeSpan) <= 0 ||
+        (prior && (compareSpanStart(calleeSpan, prior) || compareSpanEnd(calleeSpan, prior)) <= 0)) {
+      fail("artifact-invalid", "Contradictory, duplicated or unordered test modifier observation.");
+    }
+    observations.push({ modifier, calleeSpan, callSpan });
+  }
+  return { originFile, coverage, runnerBinding: { kind, bindingSpan, baseLocalName, baseImportSpan, extensionSpan, wrapper },
+    observations, reasonCodes };
 }
 
 // Drives a zero-based page sequence to its declared end. The fetcher owns
@@ -1372,7 +1820,12 @@ export type KitImportDomain = {
   selectedTargetUpperBound?: readonly string[];
 };
 
-export function validateKitImportDomain(raw: unknown, evidence: KitSourceEvidence, fact: KitFact): KitImportDomain {
+export function validateKitImportDomain(
+  raw: unknown, evidence: KitSourceEvidence, fact: KitFact, qualifyExpressionReference?: true,
+): KitImportDomain & {
+  expressionReferencePremises?: readonly KitSourceReferencePremise[];
+  linkedOperand?: { specifier: string; status: string };
+} {
   const r = asObject(raw, "import domain", "artifact-invalid");
   const origin = evidence.fileEvidence.get(fact.span.path);
   const sameSpan = (a: unknown, b: KitSourceSpan | undefined) => {
@@ -1394,6 +1847,10 @@ export function validateKitImportDomain(raw: unknown, evidence: KitSourceEvidenc
   const outcome = oneOf(r.outcome, ["finite", "indeterminate", "disjoint-selected-domain"] as const, "domain outcome", "artifact-invalid");
   const refs = r.premiseRefs, alternatives = r.operandAlternatives, witnesses = r.qualifiedPositiveWitnesses;
   const finite = outcome !== "indeterminate";
+  if (qualifyExpressionReference && (finite || r.expressionReferenceProof !== undefined) &&
+      Buffer.byteLength(JSON.stringify(r), "utf8") > 1048576) {
+    fail("artifact-invalid", "Computed import proof exceeds the serialized byte budget.");
+  }
   if (!Array.isArray(refs) || refs.length > 256 || !Array.isArray(alternatives) || alternatives.length > 64 ||
       !Array.isArray(witnesses) || witnesses.length > 1 || r.domainComplete !== finite ||
       (finite ? !alternatives.length || !refs.length || r.reasonCode !== null :
@@ -1435,7 +1892,7 @@ export function validateKitImportDomain(raw: unknown, evidence: KitSourceEvidenc
     if (q.candidateEnumerationComplete && q.status !== "present" && q.status !== "proven-missing")
       fail("artifact-invalid", "An indeterminate alternative cannot close its candidate domain.");
     paths.push(...pp);
-    return { status: q.status, complete: q.candidateEnumerationComplete, specifier: a.specifier, paths: pp };
+    return { status: q.status, complete: q.candidateEnumerationComplete, specifier: a.specifier, paths: pp, premiseIndexes: a.premiseIndexes };
   });
   if (paths.length > 256) fail("artifact-invalid", "Domain candidate path budget exceeded.");
   if (outcome === "disjoint-selected-domain") {
@@ -1447,6 +1904,8 @@ export function validateKitImportDomain(raw: unknown, evidence: KitSourceEvidenc
   } else if (r.disjointProof !== null) fail("artifact-invalid", "Unexpected disjoint proof.");
 
   const link = origin.facts.find(f => f.id === fact.dynamicImport?.literalImportFactId);
+  if (fact.dynamicImport.literalImportFactId && (!link || link.kind !== "import" || link.span.path !== fact.span.path))
+    fail("artifact-invalid", "Domain links to an unauthenticated ordinary import fact.");
   if (link && finite && (candidates.length !== 1 || candidates[0]?.specifier !== link.sourceSpecifier))
     fail("artifact-invalid", "Domain operand differs from linked literal fact.");
   const positivePaths = witnesses.map(rawWitness => {
@@ -1480,9 +1939,75 @@ export function validateKitImportDomain(raw: unknown, evidence: KitSourceEvidenc
         alternative.paths.every(candidate => selected.has(candidate) || !caseFoldedSelection?.has(candidate.toLowerCase()))))
     ? [...new Set(selectedTargets.flat())].sort()
     : undefined;
+  let expressionReferencePremises: readonly KitSourceReferencePremise[] | undefined;
+  if (qualifyExpressionReference && r.expressionReferenceProof !== undefined) {
+    const witness = closedReferenceObject(r.expressionReferenceProof, [
+      "schemaVersion", "profile", "expressionFactId", "alternativeIndex", "specifier", "targetPath",
+      "targetContentSha256", "premiseIndexes", "resolutionPremiseRefs",
+    ], "expression reference proof");
+    if (witness.schemaVersion !== "1.0.0" || witness.profile !== "js-ts-computed-exact-source-reference-v1") {
+      fail("schema-mismatch", "Unqualified expression reference protocol.");
+    }
+    const target = referencePath(witness.targetPath);
+    const targetRecord = selected.get(target);
+    const alternative = candidates[0];
+    const originPath = referencePath(fact.span.path);
+    if (fact.kind !== "dynamic-import-expression" || fact.extractionMethod !== "typescript-ast" ||
+        fact.dynamicImport.operandForm !== "computed" || fact.dynamicImport.literalImportFactId !== undefined ||
+        !["javascript", "typescript"].includes(origin.record.language) || origin.record.status !== "parsed" ||
+        origin.record.capabilities["dynamic-import-expressions"] !== "complete" ||
+        selected.get(originPath)?.contentSha256 !== origin.record.contentSha256 ||
+        witnesses.length !== 0 || outcome !== "finite" || candidates.length !== 1 ||
+        alternative?.status !== "present" || !alternative.complete ||
+        selectedTargetUpperBound?.length !== 1 || selectedTargetUpperBound[0] !== target ||
+        !targetRecord?.contentSha256 || !["javascript", "typescript"].includes(targetRecord.language) ||
+        witness.targetContentSha256 !== targetRecord.contentSha256 || witness.expressionFactId !== fact.id ||
+        witness.alternativeIndex !== 0 || witness.specifier !== alternative.specifier ||
+        /[\x00-\x1f]/.test(alternative.specifier) ||
+        !hasImmediateRelativeSpelling(originPath, alternative.specifier, target)) {
+      fail("artifact-invalid", "Unqualified expression reference identity or destination.");
+    }
+    const indexes = witness.premiseIndexes;
+    if (!validIndexes(indexes) || indexes.length > 256 || indexes.length !== alternative.premiseIndexes.length ||
+        indexes.some((index, i) => (i > 0 && index <= indexes[i - 1]!) ||
+          !alternative.premiseIndexes.includes(index))) {
+      fail("artifact-invalid", "Expression reference premises differ from the authenticated alternative.");
+    }
+    const premises = validateSourceReferencePremises(witness.resolutionPremiseRefs, selected);
+    const domain = new Set(alternative.paths.map(referencePath));
+    for (const candidate of domain) {
+      if (premises.candidates.get(candidate)?.state !== (candidate === target ? "file" : "absent")) {
+        fail("artifact-invalid", "Expression reference lacks authenticated candidate states.");
+      }
+    }
+    for (const premise of premises.candidates.values()) {
+      if (premise.state !== "absent" && premise.path !== target) {
+        fail("artifact-invalid", "Expression reference has a competing physical candidate.");
+      }
+    }
+
+    // Default source mapping requires both configuration names to be absent
+    // at every applicable level. Kit attests the candidate and blocker scope.
+    const absentConfigs = new Set(premises.premiseRefs.filter(premise => premise.role === "config").map(premise => {
+      if (premise.state !== "absent") fail("artifact-invalid", "Configured expression resolution is outside the exact profile.");
+      return premise.path;
+    }));
+    for (let directory = path.posix.dirname(originPath);; directory = path.posix.dirname(directory)) {
+      for (const name of ["tsconfig.json", "jsconfig.json"]) {
+        if (!absentConfigs.has(path.posix.join(directory, name))) {
+          fail("artifact-invalid", "Expression reference lacks default configuration premises.");
+        }
+      }
+      if (directory === ".") break;
+    }
+    expressionReferencePremises = premises.premiseRefs;
+    positivePaths.push(target);
+  }
   return { expressionFactId: fact.id, snapshotId: evidence.snapshotId,
     reasonCode: typeof r.reasonCode === "string" ? r.reasonCode : null, outcome, domainComplete: finite, positivePaths,
-    excludesSelectedDomain: outcome === "disjoint-selected-domain", selectedTargetUpperBound };
+    excludesSelectedDomain: outcome === "disjoint-selected-domain", selectedTargetUpperBound,
+    ...(link && finite ? { linkedOperand: { specifier: candidates[0].specifier, status: String(candidates[0].status) } } : {}),
+    ...(expressionReferencePremises ? { expressionReferencePremises } : {}) };
 }
 
 export type KitByteOccurrence = { complete: boolean; matchCount: number; matches: { startByte: number; endByteExclusive: number }[] };

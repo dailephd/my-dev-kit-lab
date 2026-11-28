@@ -2,19 +2,18 @@
 
 This document records the repository's operational state. It is the source of truth for what is implemented, planned, blocked, validated, and next.
 
-**Current-state reading guide (2026-11-25):** the [v0.11.0 source-evidence and current-product acceptance record](#v0110-source-evidence-and-current-product-acceptance) and [next corrective planning reservation](#next-corrective-planning-reservation-2026-11-25) govern this campaign's baseline and next action. Earlier v0.10.0/v0.10.1 package, candidate and readiness statements retain their historical scope; they do not reset the current package or activate a new release task.
+**Current-state reading guide.** See [Lab v0.11.1 FACTS-02 and the Kit 1.16.1 dependency transition](#next-corrective-planning-reservation-2026-11-25) for the represented release. The [v0.11.0 acceptance record](#v0110-source-evidence-and-current-product-acceptance) is historical.
 
 - v0.6.3 readiness covered the exact candidate: GitHub Code Scanning recorded JavaScript/TypeScript and Actions analyses with zero results and zero open alerts; six-cell standard CI and three-OS latest-Node readiness completed successfully. Local optional scanner availability is recorded separately in the readiness evidence.
 
 ## Partial-source-evidence compatibility correction
 
 This section records the historical compatibility correction. See the
-[coordinated candidate](#coordinated-kitlab-candidate) for the current
-implementation and next acceptance gate.
+[coordinated candidate](#coordinated-kitlab-candidate) for the implementation and acceptance gate recorded at that stage.
 
 **Historical SW-123 blocker for v0.10.1.** The inherited partial-JavaScript-import correction is implemented, but Step 5 pre-release readiness at `57cc8bfeff6499494b5364012b7888b6fa39a726` was **BLOCKED** on a different, valid Kit 1.15.0 Kotlin Gradle fixture record. That whole-source code-rot audit could not certify the required combined declaration/import evidence for `tests/fixtures/android/advanced-security-fixtures/release-configuration/kotlin-release-debuggable-false.gradle.kts`. The record is authenticated yet reports partial declarations/imports, unsupported JVM declarations and partial exports/ranges. This is not evidence corruption or a successful no-finding audit. CI, CodeQL, public regression, security, packaging and candidate binding passed in that SW-123 attempt; those passing gates do not override its blocked audit.
 
-**Implemented, unreleased P3 work:** `664592324228440f9c70dfaf4e1bea8d519c7d18` adds Gradle configuration fixture roles, per-file/per-detector applicability, an explicit internal predicate-aware acquisition route, and capability-independent adapter qualification. Authenticated partial capabilities retain qualified positive facts; incomplete capabilities cannot establish negative conclusions. Direct-provider acquisition remains strict, and the new route is not enabled in the audit runner. P3 passed 311 focused tests, typecheck and build; this does not certify the complete SW-123 audit.
+**P3 implementation at the historical SW-123 checkpoint:** `664592324228440f9c70dfaf4e1bea8d519c7d18` adds Gradle configuration fixture roles, per-file/per-detector applicability, an explicit internal predicate-aware acquisition route, and capability-independent adapter qualification. Authenticated partial capabilities retain qualified positive facts; incomplete capabilities cannot establish negative conclusions. Direct-provider acquisition remains strict, and the P3 route was disabled in the audit runner at that checkpoint. P3 passed 311 focused tests, typecheck and build; this does not certify the complete SW-123 audit.
 
 **Historical SW-123 plan after P3:** P4 owned detector and required-coverage handling, including independent findings and exit 2. P5 owned exact Kit package qualification and the production pin transition. P6 owned original audit replay. Kit's separate unreleased lexical-capability/cache candidate at `44fb5aa9c22d804ded256c55021e73caef8c7cd4` used metadata 1.15.1. The planning branch was `fix/v0.10.1-predicate-coverage-sw123` and the P3 implementation branch was `feature/v0.10.1-sw123-predicate-coverage`. See the [v0.10.1 roadmap](ROADMAP.md#v0101--partial-source-evidence-and-predicate-coverage-correction).
 
@@ -22,7 +21,7 @@ The historical plan required documentation reconciliation and a new exact
 Step 5 readiness assessment. The original failure and unrecovered evidence
 retain their original identities.
 
-Its source baseline is published v0.10.0. Qualified partial imports retain diagnostics; independent qualified checks continue, unsupported absence/dead-code conclusions remain unavailable, and mandatory incomplete coverage returns exit 2 even with `--fail-on none`. Current package metadata remains 0.10.0; a prospective patch version does not authorize release preparation. The original historical Kit gate remains intact; a separately authorized current-candidate route has distinct mandatory verification requirements.
+Its source baseline is published v0.10.0. Qualified partial imports retain diagnostics; independent qualified checks continue, unsupported absence/dead-code conclusions remain unavailable, and mandatory incomplete coverage returns exit 2 even with `--fail-on none`. That SW-123 checkpoint used package metadata 0.10.0 and reserved a prospective patch version. The original historical Kit gate remains intact; a separately authorized current-candidate route has distinct mandatory verification requirements.
 
 SW-118 correction commit 34e3296 supplies the bounded audit-owner changes. SW-119-R1 recovered source fixes and preserved the original divergent worktree; the integrated candidate instead starts from the published source and already contains those fixes. No stale 0.9.6 branch status is transplanted.
 
@@ -34,10 +33,10 @@ Original full SW-118 audit/timeout artifacts and mandatory historical Kit reconc
 - Historical record (Latest release as of 2026-11-14): v0.10.0 (2026-11-14); source tag c4b72e1e22c0babddcba752dfd605a41a21a45af. The following dated registry observations remain historical.
 - Historical verified registry package: **0.9.7**; registry version/latest tag checked 2026-11-14 (publication date 2026-11-09). The 2026-11-05 v0.9.6 npm/GitHub Release observation and 2026-10-28 v0.9.5 pre-preparation registry snapshot remain historical evidence.
 - Exact implementation candidate `50d1960f4406b5a0f986fe8a9cbdc09e3a8ee05e` passed local and hosted standardized readiness on 2026-10-26. Release preparation is recorded separately; npm reported baseline `0.9.4` and an explicit not-found result for `0.9.5` before the versioned release artifact was prepared.
-- Current release documentation and package metadata describe v0.11.0. Historical registry snapshot on 2026-11-14: 0.9.7.
+- Release documentation and package metadata represent v0.11.1 with the exact Kit 1.16.1 production dependency.
 - Previous release: `v0.9.7`; v0.9.6 preceded it; v0.9.5 preceded it; historical `v0.9.3` added prompt, report, metric, gallery, and comparison improvements.
 - Historical pre-publication registry check on `2026-10-16`: npm reported `0.9.2` as latest before v0.9.3 publication. This dated result is not current publication status; registry publication is established separately through external npm evidence.
-- Historical v0.9.6 release-document metadata is superseded by the current v0.10.0 final release-document state.
+- The final v0.10.0 release documentation superseded the historical v0.9.6 release-document metadata.
 - Recorded v0.9.2 GitHub release date: `2026-10-13`.
 - Historical release: `v0.9.1` (2026-10-12), followed by `v0.9.2` on 2026-10-13.
 - Historical release: `v0.9.0` (agent-success-rate evaluation); `v0.8.2` (context-pack generation experiments) preceded it.
@@ -47,10 +46,11 @@ Original full SW-118 audit/timeout artifacts and mandatory historical Kit reconc
 - `v0.4.7` adds generic declarative browser tutorial video automation, persistent browser sessions, synchronized runtime artifacts (WebM, screenshots, SRT/VTT subtitles, Markdown), a validated tutorial manifest, installed tutorial CLI routes, a packaged generic tutorial fixture, and packed-tarball clean-consumer acceptance while preserving product-specific demo ownership outside this repository.
 - Previous release-source baseline: `v0.9.1` (normalized provider telemetry and resumable agent-success-rate campaigns).
 - Historical v0.9.2 validated implementation SHA: `d6289600273a0d573f8d71dcdd975546c683dc6b` on `fix/v0.9.2-cross-platform-readiness-correction`; the global planner accepted its readiness report as PASS_READY_FOR_RELEASE_PREP. Earlier failed attempts remain historical and are superseded, not current blockers.
-- Package version: `0.10.0`, in final release-document state.
+- Historical v0.10.0 release preparation used package version `0.10.0` and its final release-document state.
+- At the v0.11.1 release preflight on 2026-11-27, the npm registry reported `0.11.0` as latest.
 - Historical registry snapshot on 2026-11-14: package 0.9.7. For v0.10.0, LAB-KIT-01 Gates 1 through 6 complete; LAB-EVIDENCE-01 prospective functional/native acceptance passed.
-- Active corrective target: `v0.10.1` — partially implemented and unreleased; P3 source work is implemented, P4–P6 remain pending, and release preparation has not begun.
-- Latest published version at the SW-123 review: `v0.10.0`. The historical v0.10.0 implementation b0c06bc3ca933d8bda2db34ba0480da741af60f5 passed its own standardized readiness; that does not qualify the complete current corrective candidate.
+- Historical SW-123 checkpoint for `v0.10.1`: P3 source work was implemented, P4–P6 were pending, and release preparation had yet to begin.
+- Latest published version at the SW-123 review: `v0.10.0`. The historical v0.10.0 implementation b0c06bc3ca933d8bda2db34ba0480da741af60f5 passed its own standardized readiness; that result applies to the historical v0.10.0 implementation.
 - The 2026-10-26 release-preparation report retains its historical registry snapshot. Current npm publication status is determined from live registry evidence, not that snapshot.
 - v0.6.2 release blockers: none; pre-release readiness passed.
 - v0.6.3 extends the v0.6.2 `stale-index` and `full-refresh` treatments with `changed-files-refresh` and `affected-neighborhood-refresh` in the same plugin.
@@ -65,7 +65,7 @@ LAB-KIT-01 Gates 1–6 are complete on `feature/v0.10.0-kit-backed-source-audits
 
 Historical Gate 5 acceptance remains: 8,438 passed, zero failed, nine skips across 545 canonical test files; native PASS and 11/11 artifacts. Its canonical local report remains `reports/v0.10.0-lab-kit-01-gate5-default-cutover.txt`, including retained earlier failures. The later Gate 6 report records qualified Kit/Rust installed acceptance, applicable positive/negative findings, required cfg failure exit 2 and unchanged target/packages. Both historical Candidate 05 and the qualified current Kit match all 150 accepted decisions across 15 roots and 121 pinned fixture files; 134 historical parity decisions, 16 accepted differences and three incomparable profiles remain explicit, not universal legacy equivalence. M01–M25, including M07 partial-positive, M13 dynamic-export and M17 qualified-owner limitations, remain preserved. Historical eleven-log loss and damaged Gate 4B are disclosed, not retroactively recovered.
 
-Package metadata and final release-document version are `0.10.0`. Candidate 05 is a historical qualified development producer with 1.14.0 metadata, distinct from public 1.14.0 and current published Kit 1.15.0. Current published-dependency and installed-consumer qualification passed. Rust uses the generic bridge with explicit unsupported/incomplete policies and no Lab-native parser. KIT-API-01 remains a separately owned upstream workstream; this Lab milestone does not establish ecosystem-wide ECO-SOURCE-01 completion.
+This milestone used package metadata and final release-document version `0.10.0`. Candidate 05 is a historical qualified development producer with 1.14.0 metadata, distinct from public 1.14.0 and the Kit 1.15.0 registry provider used for this milestone. Published-dependency and installed-consumer qualification passed in that scope. Rust uses the generic bridge with explicit unsupported/incomplete policies and no Lab-native parser. KIT-API-01 remains a separately owned upstream workstream; this Lab milestone does not establish ecosystem-wide ECO-SOURCE-01 completion.
 
 ## v0.10.0 development: LAB-EVIDENCE-01
 
@@ -413,6 +413,8 @@ Documentation reconciliation and implementation-completeness evidence: [v0.7.0 a
 
 ## Blockers
 
+The 0.11.1 implementation has no demonstrated supported-profile defect. Step 5 readiness and the later published-producer transition remain separate. External target gaps affect their own certification.
+
 For v0.10.0, implementation and prospective native acceptance are complete. Original critical RSP-011 and its missing historical report remain unsatisfied, disclosed and unaltered. That historical route is not relabeled successful by current acceptance. See [the canonical disposition](#v0100-development-lab-evidence-01).
 
 For the published `v0.8.1`: release blockers — none. Pre-release readiness passed on the exact validated candidate, and the prepared release commit passed local validation and exact-SHA hosted CI and CodeQL.
@@ -437,7 +439,7 @@ The release workflow verifies the prepared package and its publication evidence 
 
 ### Historical v0.10.0 release preparation
 
-The v0.10.0 release documentation and package metadata were prepared from validated implementation commit b0c06bc3ca933d8bda2db34ba0480da741af60f5. Package metadata and final release-document state are v0.10.0; the historical registry snapshot on 2026-11-14 records package 0.9.7. Original RSP-011 remains unsatisfied and its payload unrecovered; prospective 14/14 acceptance does not repair that historical loss.
+The v0.10.0 release documentation and package metadata were prepared from validated implementation commit b0c06bc3ca933d8bda2db34ba0480da741af60f5. That preparation recorded v0.10.0 package metadata and final release documentation; the historical registry snapshot on 2026-11-14 records package 0.9.7. Original RSP-011 remains unsatisfied and its payload unrecovered; prospective 14/14 acceptance does not repair that historical loss.
 
 Historical v0.9.5 readiness and release-preparation evidence remains attached to its own source and package identities.
 
@@ -450,15 +452,13 @@ The published/current designation is established by external registry evidence, 
 
 ## SW-121 current Kit acceptance authorization
 
-SW-121 authorizes `V010-KIT-CURRENT-ACCEPTANCE-ROUTE-01/1.0.0` under `LAB-KIT-01-CURRENT-CANDIDATE-ACCEPTANCE/1.0.0`. The implemented source-checkout collector and independent native semantic verifier retain every A-L obligation, all sixteen current disposition reviews and all three incomparable profiles. Current acceptance remains **BLOCKED_REQUIRED_EVIDENCE** pending complete exact-candidate platform and binding evidence. Authorization alone is not acceptance.
+SW-121 authorizes `V010-KIT-CURRENT-ACCEPTANCE-ROUTE-01/1.0.0` under `LAB-KIT-01-CURRENT-CANDIDATE-ACCEPTANCE/1.0.0`. The implemented source-checkout collector and independent native semantic verifier retain every A-L obligation, all sixteen current disposition reviews and all three incomparable profiles. At SW-121 authorization, acceptance was **BLOCKED_REQUIRED_EVIDENCE** while exact-candidate platform and binding evidence was incomplete. The later pass is recorded below. Authorization alone is not acceptance.
 
 The eight missing historical byte identities covering ten references remain unavailable. Historical provenance is **UNVERIFIED**; original private verification and original readiness binding are **NOT_PASSED**. Their inventories, tests, hashes and failure records are unchanged. A fresh current acceptance never claims historical recovery. The original Python M13 qualification warning is preserved and disclosed in the current bounded-candidacy review. No release, version bump or Step 5 audit is established by this work.
 
 ## v0.11.0 source evidence and current-product acceptance
 
-Lab v0.11.0 pins @dailephd/my-dev-kit@1.16.0 and uses its qualified installed CLI by default. The explicit managed archive route retains its separate producer identities.
-
-Kit 1.16.0 is published.
+This historical scope used Lab v0.11.0 and the published @dailephd/my-dev-kit@1.16.0, with its qualified installed CLI by default. The explicit managed archive route retained separate producer identities.
 
 Formal SW-121 current-product acceptance passed at implementation commit f2bfc17501d69f1e4b1ab46705a94b9c285a2f92. Independent verification covered all 150 controlled decisions and Windows, Linux, and macOS evidence. Six expected-incomplete fixtures retained 15 mandatory gaps and natural exit 2. Historical private provenance remains UNVERIFIED, historical private verification remains NOT_PASSED, and historical readiness binding remains NOT_PASSED.
 
@@ -512,8 +512,23 @@ and the original private verification and readiness binding remain **NOT_PASSED*
 
 ## Next corrective planning reservation (2026-11-25)
 
-The v0.11.0 release-document state, qualified Kit 1.16.0 production pin and recorded formal current-product acceptance remain unchanged. [LAB-FACTS-02 / v0.11.1](ROADMAP.md#v0111--predicate-scoped-audit-qualification-correction-lab-facts-02) is planned and not implemented. A newer external report explicitly names Kit 1.16.0 / Lab 0.11.0 and reports full requested file selection but incomplete mandatory audit coverage. Its raw receipts, exact target source and reported package gitHead/tag discrepancies have not been independently authenticated by this planning update. Do not identify this run with a historical table row or revise historical totals from matching file counts. Reporter claims about false-positive findings remain unadjudicated.
+[LAB-FACTS-02 / v0.11.1](ROADMAP.md#v0111--predicate-scoped-audit-qualification-correction-lab-facts-02) is the current release-document reference. This section retains the November 25 planning anchor and records the resulting implementation and registry-provider transition.
 
-The subsequent architecture execution summary reports PARTIAL_ARCHITECTURAL_EVIDENCE_RETRIEVAL: 20 bounded-source excerpts, partial responsibility/connection coverage, no qualified installed retrieval executable, and no created or reused repository indexes. The complete local report, actual failed output destinations and witness/command identities still require authentication. The reported local output-ignore blocker and shell-profile side-effect concern relate to acquisition setup; they do not establish a product defect or invalidate the recorded product baseline. Producer/acquisition qualification, proof validation/pagination, cache reuse, applicability and reader/writer compatibility remain open. A matched historical oracle hash alone does not change historical private provenance from UNVERIFIED.
+Lab package and CLI version 0.11.1 pin the authenticated registry Kit 1.16.1 producer. Kit 1.16.0 and the distinct local implementation archives retain their original acceptance identities.
 
-Next action: authenticate the retained report, inspect actual tool/index state, correct contained acquisition prerequisites, qualify the pinned retrieval executable, and create each missing repository index. Review current managed-audit receipts, reconcile all mandatory gap units and overlaps, and retrieve only missing ownership, contract and test witnesses. The revised investigation covers ordinary imports/re-exports and reverse-reference qualification, destructured declarations, bounded computed imports, actual conditional-test observations and a separate provenance assessment. Preserve existing target-scoped positive references and independent findings. The Global Planner must freeze the supported profiles, responsibility split, compatibility/version decision and implementation batches after this evidence review. No new audit PASS, recovered historical provenance, target certification or release authorization is established. The v0.12.0 local web-security scope and later reservations remain intact.
+The November 25 planning intake recorded unauthenticated external claims and partial architecture retrieval. Subsequent bounded retrieval, exact producer and consumer admission, and coordinated external regression resolved the implementation-stage obligations. Qualification recorded 18 managed exact-package tests with zero skips, 26 published-provider acceptance tests, ten installed controls, and normal raw acquisition from a fresh, unmodified index. The supported profile has no demonstrated remaining implementation defect. External targets retained native exit 2 and remain uncertified. Fifteen finite-expression cases have authenticated operands and still lack qualified destination or exclusion premises. Historical launch provenance remains **UNVERIFIED**.
+
+Step 5 admits the exact bounded NodeNext producer from Kit commit
+`d39d4018ffd70965ac40dd1e2b023c10d4ab66b8` through the local archive/root
+override. Lab consumes explicit relative ESM source references and
+immediate re-exports through the existing ordinary reference contract.
+Coordinated Step 5 readiness passed for the exact implementation pair. Lab
+Gate K returned native `INCOMPLETE` with exit 2, 134 mandatory coverage gaps,
+and one blocked candidate projection. Its effective disposition was reviewed
+as nonblocking for product readiness. The review retained the mixed-line-ending
+and residual obligations and kept
+`src/experiments/plugins/warmIndexReuse/fakeAgentEvaluation.ts` because
+supported external usage remains unverified. Gate N is resolved. Alert #11
+was dismissed as an authorized false positive and alert #12 was fixed.
+Target certification remains a separate determination. The prospective published-1.16.1 scope retains the historical oracle and separately records four mandatory gaps across three finite fixture groups. The
+v0.12.0 web security milestone and all later allocations remain intact.

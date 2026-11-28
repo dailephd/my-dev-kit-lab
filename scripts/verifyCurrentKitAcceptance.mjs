@@ -28,7 +28,8 @@ const ORACLE = 'tests/fixtures/audits/kitGate4AcceptedBaseline.v010.json';
 const POLICY = 'tests/fixtures/audits/currentKitAcceptance.v010.json';
 const ORACLE_SHA = 'a30cad80f5de3975cc17d6b804d7aeedccdb3a3d7f412b5950c098a3176f3457';
 // Exact prospective scope from the qualified reference-closure dispositions.
-const PUBLISHED_SCOPE_SHA = 'adc278ddc90b672293fb9b068259de1b7560b98a5951397b23271ec676008992';
+const HISTORICAL_PUBLISHED_SCOPE_SHA = 'adc278ddc90b672293fb9b068259de1b7560b98a5951397b23271ec676008992';
+const PUBLISHED_SCOPE_SHA = '3c814531ab533753ad1d6afd4bbad236a7406568f06fac588763951cc8b599e5';
 const SOURCE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const hash = b => createHash('sha256').update(b).digest('hex');
 const stable = v => JSON.stringify(v, (_k, x) => x && !Array.isArray(x) && typeof x === 'object' ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a.localeCompare(b))) : x);
@@ -143,6 +144,7 @@ export function verifyNativeTests(native, listing, root, platform, lane) {
   return { total: actual.length + skipped.length, passed: actual.length, skipped: skipped.length, responsibilityDigest: hash(stable(expected)) };
 }
 function publishedScope(policy) {
+  assert(hash(stable(policy.historicalPublishedProviderV1160)) === HISTORICAL_PUBLISHED_SCOPE_SHA, 'Changed historical published-provider scope');
   const scope = policy.prospectivePublishedProvider;
   assert(scope && hash(stable(scope)) === PUBLISHED_SCOPE_SHA, 'Unauthorized prospective published-provider scope');
   return scope;

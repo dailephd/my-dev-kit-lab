@@ -635,16 +635,18 @@ describe("DEAD_CODE_CANDIDATE_DETECTOR — bounded coverage regression guard", (
     const root = makeTempDir();
     try {
       writeFile(root, "package.json", JSON.stringify({ name: "domain-gap", version: "1.0.0" }));
-      writeFile(root, "src/importer.ts", "import '../unselected/hidden.js';\n");
+      writeFile(root, "src/importer.ts", "import './candidate';\n");
       writeFile(root, "src/candidate.ts", "export const candidate = 1;\n");
+      writeFile(root, "src/candidate.js", "export const candidate = 2;\n");
       writeFile(root, "src/old/retired.ts", "// independently deprecated\n");
       writeFile(root, "src/orphan.generated.ts", "// independently orphaned\n");
       const ctx = buildContext(root);
       const result = await runAudit({ config: ctx.config, toolRoot: root, registry: [DEAD_CODE_CANDIDATE_DETECTOR] });
       expect(result.sourceFacts.files.every(f => f.kit?.capabilities.imports === "complete")).toBe(true);
       expect(result.exitCode).toBe(2);
-      expect(result.coverage!.some(c => c.predicate === "unreferenced-source-file" && c.status === "UNAVAILABLE" && c.reason.includes("outside-selected-roots"))).toBe(true);
-      expect(result.issues.some(i => i.title.includes("no detected in-repo importer"))).toBe(false);
+      expect(result.coverage!.some(c => c.predicate === "unreferenced-source-file" && c.status === "UNAVAILABLE" && c.reason.includes("qualified domain still permits src/candidate.js, src/candidate.ts"))).toBe(true);
+      expect(result.issues.some(i => i.title.includes("no detected in-repo importer") &&
+        i.affectedFiles.some(file => /^src\/candidate\.(js|ts)$/.test(file)))).toBe(false);
       expect(result.issues.some(i => i.title.includes("old/deprecated"))).toBe(true);
       expect(result.issues.some(i => i.affectedFiles.includes("src/orphan.generated.ts"))).toBe(true);
     } finally { cleanup(root); }
@@ -661,6 +663,7 @@ describe("DEAD_CODE_CANDIDATE_DETECTOR — bounded coverage regression guard", (
       const result = await runAudit({ config: ctx.config, toolRoot: root, registry: [DEAD_CODE_CANDIDATE_DETECTOR] });
       const records = result.coverage?.filter(c => c.source.identity === "tests/check.test.ts") ?? [];
       expect(records.filter(c => c.mandatory).map(c => [c.predicate, c.status])).toEqual([
+        ["imports evidence", "QUALIFIED"],
         ["unreferenced-source-file", "UNAVAILABLE"],
       ]);
       expect(records, JSON.stringify(records)).toContainEqual(expect.objectContaining({

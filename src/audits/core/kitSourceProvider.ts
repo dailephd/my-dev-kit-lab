@@ -38,6 +38,11 @@ import {
   validateKitRelativePath,
   validateKitOccurrence,
   validateKitImportProof,
+  validateKitOrdinarySourceReference,
+  validateKitDirectExternalReference,
+  validateKitTestModifierProof,
+  isTestModifierSource,
+  type KitSourceReferencePremise,
   hasImmediateRelativeSpelling,
   validateKitImportDomain,
   validateKitByteOccurrence,
@@ -159,7 +164,7 @@ const QUALIFIED_DIRECT_MODIFIER_KIT = Object.freeze({
 } satisfies typeof QUALIFIED_B5_P1_R7A_KIT);
 // The registry package was authenticated against the tagged release and the
 // direct-modifier development producer. Its CLI differs by release version.
-export const QUALIFIED_CURRENT_PUBLISHED_KIT = Object.freeze({
+const QUALIFIED_PUBLISHED_KIT_1_16_0 = Object.freeze({
   packageName: KIT_PACKAGE_NAME,
   packageVersion: "1.16.0",
   artifactSchemaVersion: QUALIFIED_DIRECT_MODIFIER_KIT.artifactSchemaVersion,
@@ -171,6 +176,150 @@ export const QUALIFIED_CURRENT_PUBLISHED_KIT = Object.freeze({
   archiveUrl: "https://registry.npmjs.org/@dailephd/my-dev-kit/-/my-dev-kit-1.16.0.tgz",
 } satisfies KitCandidateExpectation & Record<string, string>);
 
+export const QUALIFIED_CURRENT_PUBLISHED_KIT = Object.freeze({
+  packageName: KIT_PACKAGE_NAME,
+  packageVersion: "1.16.1",
+  artifactSchemaVersion: "1.2.0",
+  extractorRevision: "source-audit-v1.8.0",
+  cliSha256: "eb7ee89063fb32b11d1ff79124fb339cb977d4a932c1623e546fc9451684a71c",
+  sourceSha: "636e00ac6dde4fa8100a02b23ecd00c7ccdab047",
+  sourceTree: "abe3ab3957c035a34c231e63e539575bfdef7d2a",
+  archiveSha256: "7815b246eaa12d82ba27c740796316dca99c8342f04ec2f0b9020387757392a6",
+  archiveIntegrity: "sha512-beFSr+xLGjLatJ/F4LUzFehyJ7zpS+NBZ+IU7pUb2wGnKbwODmrR+OLLAv/MibZR4LOkJchOruXNllr4V03npA==",
+  archiveUrl: "https://registry.npmjs.org/@dailephd/my-dev-kit/-/my-dev-kit-1.16.1.tgz",
+  capabilities: {
+    ordinarySourceReference: true,
+    expressionReference: true,
+    testModifierProof: true,
+    testModifierProofRequest: true,
+    directExternalReference: true,
+  } as const,
+} satisfies KitCandidateExpectation & Record<string, unknown>);
+
+const QUALIFIED_PUBLISHED_KITS = [QUALIFIED_PUBLISHED_KIT_1_16_0, QUALIFIED_CURRENT_PUBLISHED_KIT] as const;
+const QUALIFIED_PUBLISHED_CLI_DIGESTS: readonly string[] = QUALIFIED_PUBLISHED_KITS.map(profile => profile.cliSha256);
+
+const QUALIFIED_FACTS02_A5_R1_KIT = Object.freeze({
+  packageName: KIT_PACKAGE_NAME,
+  packageVersion: "1.16.0",
+  artifactSchemaVersion: "1.2.0",
+  extractorRevision: "source-audit-v1.7.0",
+  sourceSha: "a0ec1b4d2ecd28980668aed286ba6e1b72920c88",
+  archiveSha256: "a00c857131c6cc6db77a7aeb0b1c6e4cd1c621f259aa91090fa39dc5fc2acded",
+  archiveIntegrity: "sha512-D4fGOqIHuG574L8+FnOnsJpRvebaEzRWMZgSQN4K0PzPBvkOq/Kc9kfSg26ZwfrTBrNDkNL1BXYFmyhwAvXW3g==",
+  cliSha256: "614532ba59ec3f3b2c96ea8a4288bb1b398385913510d723cd83441ce4d97c34",
+  receiptSha256: "ee11bd25eff2d393dc7dee1f7ed8ef0da9f6409f6e64e8f57da07db182b0291e",
+  capabilities: {
+    ordinarySourceReference: true,
+    expressionReference: true,
+    testModifierProof: true,
+    testModifierProofRequest: true,
+  } as const,
+} satisfies KitCandidateExpectation & Record<string, unknown>);
+
+const QUALIFIED_FACTS02_A6_KIT = Object.freeze({
+  packageName: KIT_PACKAGE_NAME,
+  packageVersion: "1.16.0",
+  artifactSchemaVersion: "1.2.0",
+  extractorRevision: "source-audit-v1.7.0",
+  sourceSha: "7ee4ee863302cd0117f074d9e7bdd74949072e02",
+  sourceTree: "259f266113b7b93b4ad6ce7320a03b369960ec45",
+  archiveSha256: "bb07a8561d9295caef8783997b02082368232b73a19fdc9f79b3e44456f5ca19",
+  archiveIntegrity: "sha512-qmY5ULMlB500I1myB0GYH2Y32fbwcackXIL+Glyyzv5mVr3OOXcLeBgZvz5KUZQEv7TOB/OnaIaItJ34GTSWIg==",
+  cliSha256: "8b225c4b41c0dc5799c681ccc3ad61241f1606dbefa4f21c45b3f2de105653cb",
+  receiptSha256: "7a31db7a103635a26dbf7ccc65101e73c299f847a27652c80a9face373b451f1",
+  capabilities: {
+    ordinarySourceReference: true,
+    expressionReference: true,
+    testModifierProof: true,
+    testModifierProofRequest: true,
+  } as const,
+} satisfies KitCandidateExpectation & Record<string, unknown>);
+
+const QUALIFIED_FACTS02_A6_R1_KIT = Object.freeze({
+  packageName: KIT_PACKAGE_NAME,
+  packageVersion: "1.16.0",
+  artifactSchemaVersion: "1.2.0",
+  extractorRevision: "source-audit-v1.7.0",
+  sourceSha: "10a129e34c0b5bc83523f1d664b9dcbb703f704a",
+  sourceTree: "6d04ad046fef416aac1e6f727894c62d32b4d111",
+  archiveSha256: "7aa7df7e568b8a04576caf3390374905aa622afe86c348df23decd701de582f0",
+  archiveIntegrity: "sha512-iZL22nqkrQTQY5Tyg36tJb++5AqV4KVbPndvcnxea/TeOiVTz8gF+656uVdU6u0+aWj3C+ubL5eG/hhOk8DXCQ==",
+  cliSha256: "3c661671355ec6475768a6658cfd94d3c5f21184e1177af12418d7cac9999797",
+  receiptSha256: "4748fa4118cf28a96359ec226cb39f5a6fa73878a4979be9702a4852d3e4daa6",
+  capabilities: {
+    ordinarySourceReference: true,
+    expressionReference: true,
+    testModifierProof: true,
+    testModifierProofRequest: true,
+  } as const,
+} satisfies KitCandidateExpectation & Record<string, unknown>);
+
+const QUALIFIED_FACTS02_STEP5_R1_KIT = Object.freeze({
+  packageName: KIT_PACKAGE_NAME,
+  packageVersion: "1.16.0",
+  artifactSchemaVersion: "1.2.0",
+  extractorRevision: "source-audit-v1.7.0",
+  sourceSha: "1193ad1594fb5c84d2a9a6f08355257f376bd86a",
+  sourceTree: "3b0b939f17980e1cbea50393a1db4559c55da2c5",
+  archiveSha256: "1b9529ed55a4542070145884e0f9f2a35c4844643d4f76d64d3577ac87f48e79",
+  archiveIntegrity: "sha512-7hjSFIF9fySGo53bqrf1sUWAcMK9iZPWQsAbR3d0N9zouI2eBC390XG/LT4X2nNfNLXf0IzMbg1Nqo8Oqb3FJA==",
+  cliSha256: "764590dc9c53dfb61ff3236da701745117e2baa40cd1464dca1ed4f57ca7b17f",
+  receiptSha256: "10b1d8ad4204133812f7e5458f921032fe1c8d7aa8736bf38943fac32044695e",
+  capabilities: {
+    ordinarySourceReference: true,
+    expressionReference: true,
+    testModifierProof: true,
+    testModifierProofRequest: true,
+  } as const,
+} satisfies KitCandidateExpectation & Record<string, unknown>);
+
+const QUALIFIED_FACTS02_NODENEXT_KIT = Object.freeze({
+  packageName: KIT_PACKAGE_NAME,
+  packageVersion: "1.16.0",
+  artifactSchemaVersion: "1.2.0",
+  extractorRevision: "source-audit-v1.7.0",
+  sourceSha: "d39d4018ffd70965ac40dd1e2b023c10d4ab66b8",
+  sourceTree: "56055c768bcdd92f5218e805236db39ca11bfdf3",
+  archiveSha256: "52009e40a3f1f6f84fe2e9b9b52fc2f5aaa664285aa09aaa989487480e45d4aa",
+  archiveIntegrity: "sha512-dGxHLaA7W3KzP5J3cgbEHsHHQYrnVOk+0wWYXW/WESbgiBolzaIFXDQbiFVhXPBmr6hLiWrdkxVcn0vhR6dxwA==",
+  cliSha256: "c7a67ea2bbef4314bf86dd1cc8af8c2127451fccbd5a2d1d6623690f6b7c2f85",
+  receiptSha256: "c9a7b0b986802ec429a97e687db94ed6789e17e35af714b18f2d407c14c5b228",
+  capabilities: {
+    ordinarySourceReference: true,
+    expressionReference: true,
+    testModifierProof: true,
+    testModifierProofRequest: true,
+  } as const,
+} satisfies KitCandidateExpectation & Record<string, unknown>);
+
+const QUALIFIED_FACTS02_EXTERNAL_REFERENCE_KIT = Object.freeze({
+  packageName: KIT_PACKAGE_NAME,
+  packageVersion: "1.16.0",
+  artifactSchemaVersion: "1.2.0",
+  extractorRevision: "source-audit-v1.8.0",
+  sourceSha: "e2709d3b2a5a53ebc01919dfaba6ba82d314e52e",
+  sourceTree: "01f08f141003db75b447602d501772dac1f311f9",
+  archiveSha256: "dc9b834a7d9ef7a04c809ee4522e282374afd5907e7622897c45a1aea68c71c3",
+  archiveIntegrity: "sha512-8pE8awN7/je7O890/7a8lYpWtG2roMGOouH7I1qIr4R64j9qIHCEsViwyjpV/XLB5LWrZnWESia1S7jAwBY5GQ==",
+  cliSha256: "637b7d33a9501b4666b4e2c8188a51ef527d765abec94efee6bddfbed0905623",
+  receiptSha256: "81a4673848803c6d3afd7701424e99e94d081f8eff8cc15c823cb3ca1e8bd8c1",
+  capabilities: {
+    ordinarySourceReference: true,
+    expressionReference: true,
+    testModifierProof: true,
+    testModifierProofRequest: true,
+    directExternalReference: true,
+  } as const,
+} satisfies KitCandidateExpectation & Record<string, unknown>);
+
+const QUALIFIED_FACTS02_KITS = [
+  QUALIFIED_FACTS02_A5_R1_KIT, QUALIFIED_FACTS02_A6_KIT, QUALIFIED_FACTS02_A6_R1_KIT,
+  QUALIFIED_FACTS02_STEP5_R1_KIT, QUALIFIED_FACTS02_NODENEXT_KIT, QUALIFIED_FACTS02_EXTERNAL_REFERENCE_KIT,
+] as const;
+const QUALIFIED_FACTS02_CLI_DIGESTS: readonly string[] = QUALIFIED_FACTS02_KITS.map(profile => profile.cliSha256);
+type QualifiedFacts02Kit = (typeof QUALIFIED_FACTS02_KITS)[number];
+
 const QUALIFIED_BATCH_ARCHIVES = [QUALIFIED_B5_P1_R6_KIT, QUALIFIED_B5_P1_R7A_KIT, QUALIFIED_DIRECT_MODIFIER_KIT] as const;
 
 export function resolveQualifiedKitArchive(
@@ -178,10 +327,12 @@ export function resolveQualifiedKitArchive(
   installedPackageRoot: string,
 ): KitSourceProviderDependencies {
   const digest = sha256Hex(readBoundedFile(qualifiedArchivePath, 2 * 1024 * 1024, "package-identity", "Qualified Kit archive"));
-  const expectation = QUALIFIED_BATCH_ARCHIVES.find(profile => profile.archiveSha256 === digest) ??
+  const facts02 = QUALIFIED_FACTS02_KITS.find(profile => profile.archiveSha256 === digest);
+  const expectation = facts02 ?? QUALIFIED_BATCH_ARCHIVES.find(profile => profile.archiveSha256 === digest) ??
     (QUALIFIED_R3_ARCHIVES.some(profile => profile.archiveSha256 === digest) ? QUALIFIED_B3_P1_KIT : undefined);
   if (!expectation) fail("package-identity", "Kit archive SHA-256 does not match a qualified local archive.");
-  resolveInstalledKitPackage({ installedPackageRoot, expectation });
+  const installed = resolveInstalledKitPackage({ installedPackageRoot, expectation });
+  if (facts02) authenticateFacts02Package(qualifiedArchivePath, installed, facts02);
   return { expectation, qualifiedArchivePath, installedPackageRoot };
 }
 
@@ -207,7 +358,8 @@ export const QUALIFIED_SW123_P6_R7_KIT = {
 const SW123_EXACT_KIT_PROFILES = [QUALIFIED_SW123_P6_R2_KIT, QUALIFIED_SW123_P6_R7_KIT] as const;
 
 function isProofProfile(expectation: KitCandidateExpectation): boolean {
-  return matchesExactKitExpectation(expectation, QUALIFIED_CURRENT_PUBLISHED_KIT) ||
+  return QUALIFIED_FACTS02_KITS.some(profile => matchesExactKitExpectation(expectation, profile)) ||
+    QUALIFIED_PUBLISHED_KITS.some(profile => matchesExactKitExpectation(expectation, profile)) ||
     matchesExactKitExpectation(expectation, QUALIFIED_B3_P1_KIT) || QUALIFIED_BATCH_ARCHIVES.some(profile => matchesExactKitExpectation(expectation, profile));
 }
 
@@ -235,6 +387,13 @@ export type KitSourceProviderDependencies = {
   installedPackageRoot?: string;
   expectation?: KitCandidateExpectation;
   runCommand?: KitCommandRunner;
+  // Independent contract fixtures use the injected command seam. Real
+  // archives receive capabilities through the exact managed profile.
+  testOnlyOrdinarySourceReference?: true;
+  testOnlyDirectExternalReference?: true;
+  testOnlyExpressionReference?: true;
+  testOnlyPlaywrightModifierProof?: true;
+  testOnlyPlaywrightProofRequest?: true;
   launchGuard?: KitLaunchGuard;
   onKitLaunch?: (event: KitLaunchEvent) => void;
   // Exact R6 comparison lane. All other producer profiles remain standalone.
@@ -275,6 +434,86 @@ function readBoundedFile(filePath: string, maxBytes: number, category: KitEviden
     return fs.readFileSync(filePath);
   } catch (error) {
     fail(category, `${label} could not be read: ${error instanceof Error ? error.message : error}`);
+  }
+}
+
+function authenticateFacts02Package(archivePath: string, installed: InstalledKitPackage, profile: QualifiedFacts02Kit): void {
+  const campaign = path.dirname(path.dirname(path.resolve(archivePath)));
+  const read = (filename: string, maxBytes: number, label: string) => {
+    try {
+      const physical = fs.realpathSync.native(filename);
+      if (!isContained(campaign, physical) || path.relative(physical, filename) !== "") {
+        fail("package-identity", `${label} lies outside the qualified package layout.`);
+      }
+    } catch (error) {
+      if (error instanceof KitSourceEvidenceAcquisitionError) throw error;
+      fail("package-identity", `${label} is missing or inaccessible.`);
+    }
+    return readBoundedFile(filename, maxBytes, "package-identity", label);
+  };
+  // The Step 5 receipt includes retained hosted job metadata. Keep the
+  // larger bound scoped to its exact profile and verify its pinned digest.
+  const receiptLimit = profile === QUALIFIED_FACTS02_STEP5_R1_KIT ? 96 * 1024 : 64 * 1024;
+  const receiptBytes = read(path.join(campaign, "validation", "qualification.json"), receiptLimit, "Kit qualification receipt");
+  if (sha256Hex(receiptBytes) !== profile.receiptSha256) {
+    fail("package-identity", "Kit qualification receipt does not match the exact FACTS02 identity.");
+  }
+  // The receipt and the ledgers it pins are immutable inputs to this profile.
+  const receipt = JSON.parse(receiptBytes.toString("utf8")) as {
+    archivePath: string;
+    archiveIntegrity: string;
+    sourceCommit: string;
+    sourceTree?: string;
+    installedPackageRoot: string;
+    installedCliSha256: string;
+    archiveMemberLedgerSha256: string;
+    consumerLockSha256: string;
+    consumerManifestSha256: string;
+    runtimeDependencyIdentity: Record<string, { installedPackageJsonSha256: string }>;
+  };
+  if (path.relative(receipt.archivePath, path.resolve(archivePath)) !== "" ||
+      path.relative(receipt.installedPackageRoot, installed.packageRoot) !== "" ||
+      receipt.archiveIntegrity !== profile.archiveIntegrity || receipt.sourceCommit !== profile.sourceSha ||
+      ("sourceTree" in profile && receipt.sourceTree !== profile.sourceTree) ||
+      receipt.installedCliSha256 !== installed.cliSha256) {
+    fail("package-identity", "Kit archive and installation do not match the FACTS02 receipt.");
+  }
+  const archive = read(path.resolve(archivePath), 2 * 1024 * 1024, "Qualified Kit archive");
+  if (sha256Hex(archive) !== profile.archiveSha256) {
+    fail("package-identity", "Kit archive bytes differ from the exact FACTS02 identity.");
+  }
+  const ledgerBytes = read(path.join(campaign, "validation", "archive-members.json"), 64 * 1024, "Kit archive member ledger");
+  if (sha256Hex(ledgerBytes) !== receipt.archiveMemberLedgerSha256) {
+    fail("package-identity", "Kit archive member ledger does not match the FACTS02 receipt.");
+  }
+  const ledger = JSON.parse(ledgerBytes.toString("utf8")) as {
+    members: { path: string; size: number; sha256: string }[];
+  };
+  for (const member of ledger.members) {
+    const bytes = read(path.join(installed.packageRoot, member.path), member.size, `Kit package member ${member.path}`);
+    if (bytes.length !== member.size || sha256Hex(bytes) !== member.sha256) {
+      fail("package-identity", `Kit package member ${member.path} does not match the qualified archive.`);
+    }
+  }
+  const consumerRoot = path.join(campaign, "consumer");
+  const lock = read(path.join(consumerRoot, "package-lock.json"), 64 * 1024, "Kit runtime lockfile");
+  const manifest = read(path.join(consumerRoot, "package.json"), 64 * 1024, "Kit runtime manifest");
+  if (sha256Hex(lock) !== receipt.consumerLockSha256 || sha256Hex(manifest) !== receipt.consumerManifestSha256) {
+    fail("package-identity", "Kit runtime installation does not match the FACTS02 receipt.");
+  }
+  const resolve = createRequire(installed.cliPath);
+  for (const [name, dependency] of Object.entries(receipt.runtimeDependencyIdentity)) {
+    const root = path.join(consumerRoot, "node_modules", name);
+    const metadata = read(path.join(root, "package.json"), 64 * 1024, `Kit runtime dependency ${name}`);
+    let entry: string;
+    try {
+      entry = fs.realpathSync.native(resolve.resolve(name));
+    } catch {
+      fail("package-identity", `Kit runtime dependency ${name} cannot be resolved.`);
+    }
+    if (!isContained(root, entry) || sha256Hex(metadata) !== dependency.installedPackageJsonSha256) {
+      fail("package-identity", `Kit runtime dependency ${name} does not match the FACTS02 receipt.`);
+    }
   }
 }
 
@@ -360,17 +599,17 @@ export function resolveInstalledKitPackage(
       `installed Kit CLI SHA-256 ${cliSha256} is not the qualified candidate ${expectation.cliSha256}.`
     );
   }
-  const managed = QUALIFIED_BATCH_ARCHIVES.find(candidate => candidate.cliSha256 === cliSha256);
+  const managed = [...QUALIFIED_FACTS02_KITS, ...QUALIFIED_BATCH_ARCHIVES].find(candidate => candidate.cliSha256 === cliSha256);
   if (managed && !matchesExactKitExpectation(expectation, managed)) {
     fail("package-identity", "Managed Kit requires its exact package, CLI, extractor and selection-schema profile.");
   }
-  const published = cliSha256 === QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256;
+  const published = QUALIFIED_PUBLISHED_KITS.find(profile => profile.cliSha256 === cliSha256);
   if (published) {
-    if (expectation.extractorRevision !== QUALIFIED_CURRENT_PUBLISHED_KIT.extractorRevision)
+    if (expectation.extractorRevision !== published.extractorRevision)
       fail("extractor-mismatch", "Published Kit requires its exact qualified extractor revision.");
-    if (expectation.artifactSchemaVersion !== QUALIFIED_CURRENT_PUBLISHED_KIT.artifactSchemaVersion)
+    if (expectation.artifactSchemaVersion !== published.artifactSchemaVersion)
       fail("schema-mismatch", "Published Kit requires its exact qualified selection schema.");
-    if (!matchesExactKitExpectation(expectation, QUALIFIED_CURRENT_PUBLISHED_KIT))
+    if (!matchesExactKitExpectation(expectation, published))
       fail("package-identity", "Published Kit requires its exact qualified producer profile.");
   }
   const proofProfile = cliSha256 === QUALIFIED_B3_P1_KIT.cliSha256;
@@ -421,6 +660,9 @@ type KitCommandContext = {
   onKitLaunch?: (event: KitLaunchEvent) => void;
   query?: ReturnType<typeof createKitBatchTransport>;
   stream?: KitStreamTransport;
+  ordinarySourceReference?: true;
+  directExternalReference?: true;
+  expressionReference?: true;
 };
 
 function classifyStderrCode(stderr: string): KitEvidenceFailureCategory | undefined {
@@ -548,8 +790,15 @@ function runKitQuery(ctx: KitCommandContext, indexDir: string, item: KitBatchSel
   let args: string[];
   switch (item.selector) {
     case "audit-files": kind = "lookup-audit-files"; args = ["--audit-files", "--page", String(item.page)]; break;
-    case "audit-file": kind = "lookup-audit-file"; args = ["--audit-file", item.path, "--page", String(item.page)]; break;
-    case "audit-import-target": kind = "import-target"; args = ["--audit-import-target", item.factId]; break;
+    case "audit-file":
+      kind = "lookup-audit-file";
+      args = ["--audit-file", item.path, "--page", String(item.page)];
+      if (item.testModifierProof) args.push("--test-modifier-proof");
+      break;
+    case "audit-import-target":
+      kind = "import-target";
+      args = ["--audit-import-target", item.factId, ...(item.directExternalReferenceProof ? ["--direct-external-reference-proof"] : [])];
+      break;
     case "audit-import-domain": kind = "import-domain"; args = ["--audit-import-domain", item.factId]; break;
     case "line-range":
       family = "source"; kind = "source-range";
@@ -579,7 +828,7 @@ function runKitQuery(ctx: KitCommandContext, indexDir: string, item: KitBatchSel
 
 function configureKitBatch(ctx: KitCommandContext, deps: KitSourceProviderDependencies,
   identity: { snapshotId: string; selectionFingerprint: string }, indexDir: string): void {
-  if (![QUALIFIED_B5_P1_R6_KIT.cliSha256, QUALIFIED_B5_P1_R7A_KIT.cliSha256, QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256].includes(ctx.pkg.cliSha256) || deps.disableBatch || !ctx.guard) return;
+  if (![QUALIFIED_B5_P1_R6_KIT.cliSha256, QUALIFIED_B5_P1_R7A_KIT.cliSha256, ...QUALIFIED_PUBLISHED_CLI_DIGESTS, ...QUALIFIED_FACTS02_CLI_DIGESTS].includes(ctx.pkg.cliSha256) || deps.disableBatch || !ctx.guard) return;
   const batchInput = fs.mkdtempSync(path.join(ctx.workDir, "kb-"));
   let next = 0;
   ctx.query = createKitBatchTransport({
@@ -611,7 +860,7 @@ type KitStreamState = { current?: KitStreamTransport };
 
 function configureKitTransport(ctx: KitCommandContext, deps: KitSourceProviderDependencies,
   identity: { snapshotId: string; selectionFingerprint: string }, indexDir: string, state?: KitStreamState): void {
-  if (!state || !ctx.guard || deps.disableStream || ![QUALIFIED_B5_P1_R7A_KIT.cliSha256, QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256].includes(ctx.pkg.cliSha256)) {
+  if (!state || !ctx.guard || deps.disableStream || ![QUALIFIED_B5_P1_R7A_KIT.cliSha256, ...QUALIFIED_PUBLISHED_CLI_DIGESTS, ...QUALIFIED_FACTS02_CLI_DIGESTS].includes(ctx.pkg.cliSha256)) {
     configureKitBatch(ctx, deps, identity, indexDir);
     return;
   }
@@ -661,6 +910,8 @@ export async function acquireKitSourceEvidence(
   streamState?: KitStreamState,
 ): Promise<KitSourceEvidence> {
   const proofProfile = pkg.cliSha256 === expectation.cliSha256 && isProofProfile(expectation);
+  const modifierProfile = playwrightModifierProfile(pkg, expectation, deps);
+  const qualifiedTestModifierProof = modifierProfile !== undefined;
   if (request.predicateRequirements && !proofProfile && (!expectation.cliSha256 || expectation.artifactSchemaVersion !== "1.1.0" ||
       (!["source-audit-v1.5.0", "source-audit-v1.5.1"].includes(expectation.extractorRevision) &&
         !SW123_EXACT_KIT_PROFILES.some(profile => matchesExactKitExpectation(expectation, profile))))) {
@@ -743,6 +994,9 @@ export async function acquireKitSourceEvidence(
     async (pageIndex) => {
       const raw = await runKitQuery(ctx, indexDir, { selector: "audit-files", page: pageIndex });
       if ((raw as { schemaVersion?: unknown })?.schemaVersion !== header.schemaVersion) fail("schema-mismatch", "Inventory page schema differs from the validated artifact.");
+      if (qualifiedTestModifierProof && Object.hasOwn(raw as object, "testModifierProof")) {
+        fail("page-invalid", "Test modifier proof is not permitted on an inventory page.");
+      }
       return validateInventoryPage(raw, { snapshotId, pageIndex });
     },
     { maxPages: KIT_MAX_INVENTORY_PAGES, label: "inventory traversal", ...((ctx.query || ctx.stream) && { window: KIT_LOOKUP_CONCURRENCY }) }
@@ -772,15 +1026,22 @@ export async function acquireKitSourceEvidence(
       if (index >= factPaths.length) return;
       const filePath = factPaths[index]!;
       try {
+        const inventoryRecord = recordByPath.get(filePath)!;
         const pages = await collectAllPages(
           async (pageIndex) => {
-            const raw = await runKitQuery(ctx, indexDir, { selector: "audit-file", path: filePath, page: pageIndex });
+            const requestProof = modifierProfile === "negotiated" && pageIndex === 0 && isTestModifierSource(inventoryRecord);
+            const item = { selector: "audit-file", path: filePath } as const;
+            const raw = await runKitQuery(ctx, indexDir, requestProof
+              ? { ...item, page: 0, testModifierProof: true } : { ...item, page: pageIndex });
             if ((raw as { schemaVersion?: unknown })?.schemaVersion !== header.schemaVersion) fail("schema-mismatch", "Fact page schema differs from the validated artifact.");
-            return validateFactPage(raw, { snapshotId, pageIndex, path: filePath });
+            if (modifierProfile === "negotiated" && !requestProof && Object.hasOwn(raw as object, "testModifierProof")) {
+              fail("page-invalid", "The exact-file request did not negotiate test modifier proof.");
+            }
+            return validateFactPage(raw, { snapshotId, pageIndex, path: filePath,
+              qualifiedTestModifierProof: qualifiedTestModifierProof ? true : undefined });
           },
           { maxPages: KIT_MAX_FACT_PAGES_PER_FILE, label: `fact traversal of ${filePath}` }
         );
-        const inventoryRecord = recordByPath.get(filePath)!;
         crossValidateFileRecord(inventoryRecord, pages[0]!.file);
         const record = pages[0]!.file;
         if (request.predicateRequirements) {
@@ -823,7 +1084,7 @@ export async function acquireKitSourceEvidence(
     fileEvidence.set(filePath, { record: pages[0]!.file, facts, factPages: pages.length });
   });
 
-  return {
+  const evidence: KitSourceEvidence = {
     producer: header.producer,
     artifactSchemaVersion: header.schemaVersion,
     extractorRevision: expectation.extractorRevision,
@@ -836,6 +1097,47 @@ export async function acquireKitSourceEvidence(
     factPages: factPageCount,
     traversalComplete: true,
   };
+  if (qualifiedTestModifierProof) {
+    const selectedDomainDigest = sha256Hex(JSON.stringify([...recordByPath.keys()].sort()));
+    for (const [index, filePath] of factPaths.entries()) {
+      const raw = outcomes[index]!.pages![0]!.testModifierProof;
+      if (!raw) continue;
+      const root = fs.realpathSync.native(evidence.source.projectRoot);
+      const origin = fileEvidence.get(filePath)!;
+      const proof = validateKitTestModifierProof(raw, origin, evidence, recordByPath, selectedDomainDigest,
+        record => readFreshModifierSource(root, record));
+      if (proof.runnerBinding.wrapper) {
+        assertSourceReferencePremises(root, proof.runnerBinding.wrapper.reference.premiseRefs, recordByPath);
+      }
+      origin.testModifierProof = proof;
+    }
+  }
+  return evidence;
+}
+
+function hasReferenceFixtureLane(deps: KitSourceProviderDependencies, schemaVersion: string): boolean {
+  return !!(deps.disableStream && deps.runCommand && deps.installedPackageRoot && deps.expectation &&
+    !deps.qualifiedArchivePath && schemaVersion === "1.2.0");
+}
+
+function playwrightModifierProfile(
+  pkg: InstalledKitPackage, expectation: KitCandidateExpectation, deps: KitSourceProviderDependencies,
+): "passive" | "negotiated" | undefined {
+  const exact = QUALIFIED_FACTS02_KITS.find(profile =>
+    pkg.cliSha256 === profile.cliSha256 && matchesExactKitExpectation(expectation, profile));
+  const published = !hasReferenceFixtureLane(deps, expectation.artifactSchemaVersion) &&
+    pkg.cliSha256 === QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256 &&
+    matchesExactKitExpectation(expectation, QUALIFIED_CURRENT_PUBLISHED_KIT) ? QUALIFIED_CURRENT_PUBLISHED_KIT : undefined;
+  const profile = published ?? (deps.qualifiedArchivePath ? exact : undefined);
+  if (profile?.capabilities.testModifierProof && profile.capabilities.testModifierProofRequest) {
+    return "negotiated";
+  }
+  if (deps.testOnlyPlaywrightModifierProof !== true || !deps.runCommand || !deps.installedPackageRoot ||
+      !deps.expectation || deps.qualifiedArchivePath || expectation.artifactSchemaVersion !== "1.2.0" ||
+      pkg.cliSha256 !== expectation.cliSha256 || !isProofProfile(expectation)) return undefined;
+  if (deps.testOnlyPlaywrightProofRequest === true) return "negotiated";
+  if (deps.disableStream) return "passive";
+  return undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -879,10 +1181,30 @@ export type KitSourceReader = {
   // Exact selected bytes for text-only predicates. This supplies no semantic facts.
   authenticatedRawTestContent?: (filePath: string) => string | undefined;
   explicitImportsCompleteWithExpressions?: (filePath: string, explicitImportCount: number) => boolean;
-  expressionDomains?: (filePath: string) => Promise<readonly { linkedImportFactId?: string; proof: KitImportDomain }[]>;
+  expressionDomains?: (filePath: string) => Promise<readonly {
+    linkedImportFactId?: string;
+    proof: KitImportDomain;
+    linkedDestination?: {
+      positivePath?: string;
+      selectedTargetUpperBound?: readonly string[];
+      applicableSourceReferenceAbsent: boolean;
+      directExternalReferenceExcluded?: true;
+    };
+  }[]>;
   byteOccurrences?: (filePath: string, needleHex: string) => Promise<KitByteOccurrence>;
   ambientClassification?: (filePath: string) => KitAmbientClassification | undefined;
-  importTarget: (factId: string) => Promise<KitImportProof & { exactSelectedPath?: string }>;
+  ordinarySourceReference?: true;
+  /** The exact computed-reference extension is qualified for this reader. */
+  expressionReference?: true;
+  testModifierProof?: (filePath: string) => KitFileEvidence["testModifierProof"];
+  importTarget: (factId: string) => Promise<KitImportProof & {
+    exactSelectedPath?: string;
+    qualifiedSourceReferencePath?: string;
+    selectedTargetUpperBound?: readonly string[];
+    ordinarySourceReferenceReason?: string | null;
+    applicableSourceReferenceAbsent?: true;
+    directExternalReferenceExcluded?: true;
+  }>;
   dispose: () => void | Promise<void>;
 };
 
@@ -890,6 +1212,7 @@ export type KitSourceReader = {
 // Add future producer identities only after qualifying the same proof contract.
 const IMPORT_PROOF_PROFILES: Readonly<Record<string, "mjs-extensionless-complete-v1">> = Object.freeze({
   [QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256]: "mjs-extensionless-complete-v1",
+  [QUALIFIED_PUBLISHED_KIT_1_16_0.cliSha256]: "mjs-extensionless-complete-v1",
   [QUALIFIED_DIRECT_MODIFIER_KIT.cliSha256]: "mjs-extensionless-complete-v1",
   [QUALIFIED_SW123_P6_R2_KIT.cliSha256]: "mjs-extensionless-complete-v1",
   // SW-123 P5: exact unpublished P2 archive, metadata 1.15.1. Installed
@@ -919,8 +1242,9 @@ const JSON_RAW_CONTENT_PROFILES: Readonly<Record<string, "selected-test-json-v1"
 // independently qualified selected generated and vendor raw occurrences without changing
 // the public role schema or admitting generated semantic source facts.
 const NON_SEMANTIC_RAW_CONTENT_PROFILES: ReadonlySet<string> = new Set([
-  QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256,
+  ...QUALIFIED_PUBLISHED_CLI_DIGESTS,
   QUALIFIED_DIRECT_MODIFIER_KIT.cliSha256,
+  ...QUALIFIED_FACTS02_CLI_DIGESTS,
   // The exact R3 CLI also returns complete, hash-bound text occurrences
   // for selected generated and vendor source without admitting semantic facts.
   QUALIFIED_B3_P1_KIT.cliSha256,
@@ -940,8 +1264,72 @@ function assertKitNonSemanticRawContent(record: KitFileRecord, qualifiedProducer
   }
 }
 
+function assertCanonicalReferenceOrigin(root: string, originFile: string): void {
+  const origin = path.resolve(root, originFile);
+  if (fs.realpathSync.native(origin) !== origin) fail("stale-evidence", "Source reference origin identity changed.");
+}
+
+function readFreshProofSource(root: string, file: KitFileRecord): Buffer {
+  const target = fs.realpathSync(path.resolve(root, file.path));
+  if (!isContained(root, target) || !file.contentSha256) fail("stale-evidence", "Required proof file lacks contained hashed bytes.");
+  const bytes = readBoundedFile(target, file.sizeBytes, "stale-evidence", "Proof source");
+  if (bytes.length !== file.sizeBytes || sha256Hex(bytes) !== file.contentSha256) fail("stale-evidence", "Proof source bytes changed.");
+  return bytes;
+}
+
+function readFreshModifierSource(root: string, file: KitFileRecord): Buffer {
+  try {
+    assertCanonicalReferenceOrigin(root, file.path);
+    return readFreshProofSource(root, file);
+  } catch (error) {
+    if (error instanceof KitSourceEvidenceAcquisitionError) throw error;
+    fail("stale-evidence", "Test modifier proof source cannot be inspected: " + file.path);
+  }
+}
+
+function assertSourceReferencePremises(
+  root: string, premises: readonly KitSourceReferencePremise[], inventory: ReadonlyMap<string, KitFileRecord>,
+): void {
+  for (const premise of premises) {
+    let state: KitSourceReferencePremise["state"] = "directory";
+    const segments = premise.path.split("/");
+    let current = root;
+    for (const segment of segments) {
+      if (state !== "directory") {
+        state = "absent";
+        break;
+      }
+      current = path.join(current, segment);
+      try {
+        const stat = fs.lstatSync(current);
+        if (stat.isSymbolicLink() || fs.realpathSync.native(current) !== current) {
+          fail("stale-evidence", "Source reference premise no longer has a canonical contained path.");
+        }
+        if (stat.isFile()) state = "file";
+        else if (!stat.isDirectory()) fail("stale-evidence", "Source reference premise has an unsupported file type.");
+      } catch (error) {
+        if (error instanceof KitSourceEvidenceAcquisitionError) throw error;
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+          fail("stale-evidence", "Source reference premise cannot be inspected.");
+        }
+        state = "absent";
+        break;
+      }
+    }
+    if (state !== premise.state) fail("stale-evidence", "Source reference premise state changed: " + premise.path);
+    if (state === "file") {
+      const size = Math.min(inventory.get(premise.path)?.sizeBytes ?? KIT_MANIFEST_MAX_BYTES, KIT_MANIFEST_MAX_BYTES);
+      const bytes = readBoundedFile(current, size, "stale-evidence", "Source reference premise");
+      if (sha256Hex(bytes) !== premise.contentSha256) {
+        fail("stale-evidence", "Source reference premise content changed: " + premise.path);
+      }
+    }
+  }
+}
+
 function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandContext, dispose: () => void | Promise<void>,
-  testFiles: ProjectInventorySnapshot["testFiles"], rawSourceFiles: ProjectInventorySnapshot["sourceFiles"], inventoryFiles: ProjectInventorySnapshot["files"]): KitSourceReader {
+  testFiles: ProjectInventorySnapshot["testFiles"], rawSourceFiles: ProjectInventorySnapshot["sourceFiles"],
+  inventoryFiles: ProjectInventorySnapshot["files"], qualifiedTestModifierProof: boolean): KitSourceReader {
   const cache = new Map<string, Promise<KitOccurrence>>();
   // A fresh stream frame is required for repeated predicates, especially
   // import absence, which can change while the origin SHA stays identical.
@@ -950,24 +1338,22 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
     if (!store.has(key)) store.set(key, fetch());
     return store.get(key)!;
   }
-  const proofs = new Map<string, Promise<KitImportProof>>();
+  const proofs = new Map<string, Promise<{
+    proof: KitImportProof;
+    reference?: ReturnType<typeof validateKitOrdinarySourceReference>;
+    externalPremises?: readonly KitSourceReferencePremise[];
+  }>>();
   const contents = new Map<string, Promise<string>>();
   const rawTestContents = new Map<string, string | undefined>();
   const testFileByPath = new Map(testFiles.map(file => [file.relativePath, file]));
   const r3 = (ctx.pkg.cliSha256 === QUALIFIED_B3_P1_KIT.cliSha256 ||
-    ctx.pkg.cliSha256 === QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256 ||
+    QUALIFIED_PUBLISHED_CLI_DIGESTS.includes(ctx.pkg.cliSha256) ||
+    QUALIFIED_FACTS02_CLI_DIGESTS.includes(ctx.pkg.cliSha256) ||
     QUALIFIED_BATCH_ARCHIVES.some(profile => profile.cliSha256 === ctx.pkg.cliSha256)) &&
     evidence.artifactSchemaVersion === "1.2.0";
-  const domainPromises = new Map<string, Promise<KitImportDomain>>();
+  const domainPromises = new Map<string, Promise<ReturnType<typeof validateKitImportDomain>>>();
   const inventoryByPath = new Map(evidence.inventory.map(record => [record.path, record]));
-  const assertFresh = (file: KitFileRecord) => {
-    const root = fs.realpathSync(evidence.source.projectRoot);
-    const target = fs.realpathSync(path.resolve(root, file.path));
-    if (!isContained(root, target) || !file.contentSha256) fail("stale-evidence", "Required proof file lacks contained hashed bytes.");
-    const bytes = readBoundedFile(target, file.sizeBytes, "stale-evidence", "Proof source");
-    if (bytes.length !== file.sizeBytes || sha256Hex(bytes) !== file.contentSha256) fail("stale-evidence", "Proof source bytes changed.");
-    return bytes;
-  };
+  const assertFresh = (file: KitFileRecord) => readFreshProofSource(fs.realpathSync(evidence.source.projectRoot), file);
   const indexDir = path.join(ctx.workDir, "index");
   const jsonRawLiteralContent = r3 ? "selected-test-json-v1" : JSON_RAW_CONTENT_PROFILES[ctx.pkg.cliSha256];
   const p6R2 = ctx.pkg.cliSha256 === QUALIFIED_SW123_P6_R2_KIT.cliSha256 &&
@@ -1131,6 +1517,22 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
     jsonRawLiteralContent,
     selectedFile,
     reExportSpecifiers: filePath => reExportTargets(filePath).map(fact => fact.sourceSpecifier),
+    ordinarySourceReference: ctx.ordinarySourceReference,
+    expressionReference: ctx.expressionReference,
+    testModifierProof: qualifiedTestModifierProof ? filePath => {
+      if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
+      validateKitRelativePath(filePath, "test modifier proof file");
+      const origin = evidence.fileEvidence.get(filePath);
+      if (!origin?.testModifierProof) return undefined;
+      const root = fs.realpathSync.native(evidence.source.projectRoot);
+      readFreshModifierSource(root, origin.record);
+      const wrapper = origin.testModifierProof.runnerBinding.wrapper;
+      if (wrapper) {
+        readFreshModifierSource(root, inventoryByPath.get(wrapper.path)!);
+        assertSourceReferencePremises(root, wrapper.reference.premiseRefs, inventoryByPath);
+      }
+      return origin.testModifierProof;
+    } : undefined,
     reExportTargets: r3 || p6R2 ? reExportTargets : undefined,
     fixtureReferenceBasenames(filePath) {
       if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
@@ -1218,15 +1620,46 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
         const entry = evidence.fileEvidence.get(filePath);
         if (!entry) fail("selection-incomplete", "Domain origin is outside authenticated fact pages.");
         assertFresh(entry.record);
-        const proofs = [];
+        const proofs: Awaited<ReturnType<NonNullable<KitSourceReader["expressionDomains"]>>>[number][] = [];
         for (const fact of entry.facts.filter(fact => fact.kind === "dynamic-import-expression")) {
-          const proof = await query(domainPromises, fact.id, () => runKitQuery(ctx, indexDir,
-            { selector: "audit-import-domain", factId: fact.id }).then(raw => validateKitImportDomain(raw, evidence, fact)));
+          const { expressionReferencePremises, linkedOperand, ...proof } = await query(domainPromises, fact.id, () => runKitQuery(ctx, indexDir,
+            { selector: "audit-import-domain", factId: fact.id }).then(raw =>
+              validateKitImportDomain(raw, evidence, fact, ctx.expressionReference)));
           assertFresh(entry.record);
+          if (expressionReferencePremises) {
+            if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
+            const root = fs.realpathSync.native(evidence.source.projectRoot);
+            assertCanonicalReferenceOrigin(root, entry.record.path);
+            assertSourceReferencePremises(root, expressionReferencePremises, inventoryByPath);
+          }
           for (const target of proof.selectedTargetUpperBound ?? proof.positivePaths) {
             assertFresh(inventoryByPath.get(target)!);
           }
-          proofs.push({ linkedImportFactId: fact.dynamicImport?.literalImportFactId, proof });
+          const linkedImportFactId = fact.dynamicImport?.literalImportFactId;
+          if (!linkedImportFactId || !linkedOperand || !ctx.ordinarySourceReference) {
+            proofs.push({ linkedImportFactId, proof });
+            continue;
+          }
+          const target = await reader.importTarget(linkedImportFactId);
+          if (target.sourceSpecifier !== linkedOperand.specifier || target.snapshotId !== proof.snapshotId) {
+            fail("artifact-invalid", "Linked ordinary import proof does not match the expression operand.");
+          }
+          const positivePath = target.qualifiedSourceReferencePath;
+          const bound = target.selectedTargetUpperBound;
+          if ((positivePath && (proof.excludesSelectedDomain || linkedOperand.status === "proven-missing" ||
+                proof.positivePaths.some(path => path !== positivePath) ||
+                (proof.selectedTargetUpperBound && !proof.selectedTargetUpperBound.includes(positivePath)))) ||
+              (bound && proof.positivePaths.some(path => !bound.includes(path))) ||
+              (bound?.length === 0 && linkedOperand.status === "present") ||
+              (proof.excludesSelectedDomain && bound?.length)) {
+            fail("artifact-invalid", "Qualified linked import destination contradicts expression evidence.");
+          }
+          proofs.push({ linkedImportFactId, proof, linkedDestination: {
+            positivePath,
+            selectedTargetUpperBound: bound,
+            applicableSourceReferenceAbsent: target.applicableSourceReferenceAbsent === true,
+            directExternalReferenceExcluded: target.directExternalReferenceExcluded,
+          } });
         }
         return proofs;
       },
@@ -1272,8 +1705,40 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
       const entry = importsById.get(factId);
       if (!entry) fail("invalid-request", "Import fact ID is not in the validated fact pages.");
       const { fact, record } = entry;
-      const proof = await query(proofs, factId, () => runKitQuery(ctx, indexDir,
-        { selector: "audit-import-target", factId }).then(raw => validateKitImportProof(raw, { snapshotId: evidence.snapshotId, fact, evidence })));
+      const fetchProof = async () => {
+        const raw = await runKitQuery(ctx, indexDir, { selector: "audit-import-target", factId,
+          ...(ctx.directExternalReference ? { directExternalReferenceProof: true } : {}) });
+        const proof = validateKitImportProof(raw, { snapshotId: evidence.snapshotId, fact, evidence });
+        const extension = (raw as { sourceReferenceProof?: unknown }).sourceReferenceProof;
+        const reference = ctx.ordinarySourceReference && extension !== undefined
+          ? validateKitOrdinarySourceReference(extension, proof, evidence, fact) : undefined;
+        const external = (raw as { directExternalReferenceProof?: unknown }).directExternalReferenceProof;
+        if (external !== undefined && (!ctx.directExternalReference || reference?.selectedTargetUpperBound ||
+            reference?.qualifiedSourceReferencePath || reference?.applicableSourceReferenceAbsent)) {
+          fail("artifact-invalid", "Unnegotiated or contradictory external reference proof.");
+        }
+        const externalPremises = external === undefined ? undefined : validateKitDirectExternalReference(external, proof, evidence, fact);
+        return { proof, reference, externalPremises };
+      };
+      // Extension premises are rechecked on every use of the memoized response.
+      // The legacy stream continues to refresh its independent absence claims.
+      const { proof, reference, externalPremises } = await query(proofs, factId, fetchProof);
+      if (reference || externalPremises) {
+        if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
+        const root = fs.realpathSync.native(evidence.source.projectRoot);
+        assertCanonicalReferenceOrigin(root, record.path);
+        assertFresh(record);
+        if (reference) assertSourceReferencePremises(root, reference.premiseRefs, inventoryByPath);
+        if (externalPremises) assertSourceReferencePremises(root, externalPremises, inventoryByPath);
+      }
+      const projection = {
+        qualifiedSourceReferencePath: reference?.qualifiedSourceReferencePath,
+        selectedTargetUpperBound: externalPremises ? [] : reference?.selectedTargetUpperBound,
+        directExternalReferenceExcluded: externalPremises ? true as const : undefined,
+        ordinarySourceReferenceReason: reference?.reasonCode,
+        applicableSourceReferenceAbsent: reference?.applicableSourceReferenceAbsent,
+        exactSelectedPath: undefined,
+      };
       if (r3 && (record.language === "javascript" || record.language === "typescript")) {
         if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
         assertFresh(record);
@@ -1297,14 +1762,19 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
           // or configured candidates. Admit only a literal immediate path shared
           // by ordinary relative ESM and CommonJS resolution.
           if (proof.candidatePaths.length === 1 && hasImmediateRelativeSpelling(record.path, specifier, selected) &&
-              isCanonical(record.path) && isCanonical(selected)) return { ...proof, exactSelectedPath: selected };
+              isCanonical(record.path) && isCanonical(selected)) {
+            if (reference?.selectedTargetUpperBound && !reference.selectedTargetUpperBound.includes(selected)) {
+              fail("artifact-invalid", "Qualified exact path contradicts the ordinary source reference domain.");
+            }
+            return { ...proof, ...projection, exactSelectedPath: selected };
+          }
         } else if (proof.status === "proven-missing" &&
             (proof.reasonCode !== "ALL_CANDIDATES_ABSENT_IN_COMPLETE_SELECTION" ||
             proof.candidatePaths.some(candidate => inventoryByPath.has(candidate)))) {
           fail("artifact-invalid", "Import-target exclusion contradicts the selected inventory.");
         }
       }
-      return proof;
+      return { ...proof, ...projection };
     },
   };
   return reader;
@@ -1453,16 +1923,18 @@ export async function collectKitSourceFacts(
     archivePath: deps.qualifiedArchivePath ?? null, observedArchive: archive,
   });
   const pkg = resolveInstalledKitPackage({ installedPackageRoot: deps.installedPackageRoot, expectation });
-  const managed = QUALIFIED_BATCH_ARCHIVES.find(candidate => candidate.cliSha256 === pkg.cliSha256);
+  const facts02 = QUALIFIED_FACTS02_KITS.find(profile => profile.cliSha256 === pkg.cliSha256);
+  const managed = facts02 ?? QUALIFIED_BATCH_ARCHIVES.find(profile => profile.cliSha256 === pkg.cliSha256);
   if (managed) {
     if (!deps.installedPackageRoot || !deps.qualifiedArchivePath ||
         sha256Hex(readBoundedFile(deps.qualifiedArchivePath, 2 * 1024 * 1024, "package-identity", "Qualified Kit archive")) !== managed.archiveSha256) {
       fail("package-identity", "Managed Kit requires the exact qualified local archive and installed package root.");
     }
+    if (facts02) authenticateFacts02Package(deps.qualifiedArchivePath, pkg, facts02);
     if (!deps.workDir && !deps.receipt) fail("invalid-request", "Managed Kit requires a task-owned work directory or audit receipt.");
     deps = { ...deps, launchGuard: deps.launchGuard ?? createKitLaunchGuard() };
   }
-  if (pkg.cliSha256 === QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256) {
+  if (QUALIFIED_PUBLISHED_CLI_DIGESTS.includes(pkg.cliSha256)) {
     deps = { ...deps, launchGuard: deps.launchGuard ?? createKitLaunchGuard() };
   }
   let qualifiedR3Archive: (typeof QUALIFIED_R3_ARCHIVES)[number] | undefined;
@@ -1546,7 +2018,7 @@ export async function collectKitSourceFacts(
     if (expectedSnapshot !== undefined && evidence.snapshotId !== expectedSnapshot)
       fail("stale-evidence", "The acquired whole-project Kit snapshot differs from the frozen replay snapshot.");
     const snapshot = adaptKitEvidenceToSourceFacts({
-      qualifiedDirectModifiers: [QUALIFIED_DIRECT_MODIFIER_KIT, QUALIFIED_CURRENT_PUBLISHED_KIT].some(profile =>
+      qualifiedDirectModifiers: [QUALIFIED_DIRECT_MODIFIER_KIT, ...QUALIFIED_PUBLISHED_KITS, ...QUALIFIED_FACTS02_KITS].some(profile =>
         pkg.cliSha256 === profile.cliSha256 && matchesExactKitExpectation(expectation, profile)),
       evidence,
       inventory: request.inventory,
@@ -1557,14 +2029,24 @@ export async function collectKitSourceFacts(
     });
     if (scope.widerSelection) snapshot.warnings.push("Required root-level source selected with --src .; only validated selected files provide source evidence.");
     if (request.onReader) {
+      const fixtureExtensionLane = hasReferenceFixtureLane(deps, evidence.artifactSchemaVersion);
+      const capabilities = facts02?.capabilities ??
+        (!fixtureExtensionLane && pkg.cliSha256 === QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256
+          ? QUALIFIED_CURRENT_PUBLISHED_KIT.capabilities : undefined);
       const context: KitCommandContext = { pkg, runCommand: deps.runCommand ?? runMeasuredCommand,
         workDir, logDir: path.join(workDir, "logs"), sequence: { next: 1_000_000 }, receipt: deps.receipt,
-        guard: deps.launchGuard, onKitLaunch: deps.onKitLaunch };
+        guard: deps.launchGuard, onKitLaunch: deps.onKitLaunch,
+        ordinarySourceReference: capabilities?.ordinarySourceReference ?? (fixtureExtensionLane ? deps.testOnlyOrdinarySourceReference : undefined),
+        directExternalReference: facts02 === QUALIFIED_FACTS02_EXTERNAL_REFERENCE_KIT ||
+          (!fixtureExtensionLane && pkg.cliSha256 === QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256) ||
+          (fixtureExtensionLane && deps.testOnlyDirectExternalReference) ? true : undefined,
+        expressionReference: capabilities?.expressionReference ?? (fixtureExtensionLane ? deps.testOnlyExpressionReference : undefined) };
       configureKitTransport(context, deps, evidence.source, path.join(workDir, "index"), streamState);
       const reader = createKitSourceReader(evidence, context, async () => {
         await close();
         if (ownedWorkDir) fs.rmSync(workDir, { recursive: true, force: true });
-      }, request.inventory.testFiles, rawSourceFiles, request.inventory.files);
+      }, request.inventory.testFiles, rawSourceFiles, request.inventory.files,
+      playwrightModifierProfile(pkg, expectation, deps) !== undefined);
       request.onReader(reader);
       readerIssued = true;
     }

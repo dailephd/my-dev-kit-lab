@@ -1,5 +1,6 @@
 import fs from "node:fs";
-import { KitSourceEvidenceAcquisitionError } from "../../core/kitSourceEvidence.js";
+import { KitSourceEvidenceAcquisitionError, qualifyKitImportPredicate } from "../../core/kitSourceEvidence.js";
+import type { KitSourceReader } from "../../core/kitSourceProvider.js";
 import { kitPredicateContent } from "../utils/sourceFactsLookup.js";
 import path from "node:path";
 import type { AuditDetector, AuditDetectorContext } from "../../core/auditRegistry.js";
@@ -144,34 +145,59 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
       if (testFile.relativePath.startsWith("tests/audits/codeRot/")) return issues;
 
       const reader = ctx.kitSourceReader;
-      const scopedDomains = (observed?.language === "typescript" || observed?.language === "javascript") && reader?.expressionDomains
+      const jsTs = observed?.language === "typescript" || observed?.language === "javascript";
+      const scopedDomains = jsTs && reader?.expressionDomains
         ? await reader.expressionDomains(testFile.relativePath) : undefined;
       const domainMissing = new Set<string>();
       const linked = new Set<string>();
-      for (const { linkedImportFactId, proof } of scopedDomains ?? []) {
+      for (const { linkedImportFactId, proof, linkedDestination } of scopedDomains ?? []) {
         if (linkedImportFactId) linked.add(linkedImportFactId);
         const imp = observed?.imports.find(i => i.provenance?.factId === linkedImportFactId);
-        const missingRelative = !!imp?.source.startsWith(".") && proof.excludesSelectedDomain;
+        const linkedBound = linkedDestination?.selectedTargetUpperBound;
+        const externalOrLocalExclusion = linkedBound?.length === 0;
+        const missingRelative = !!imp?.source.startsWith(".") && (
+          linkedDestination?.applicableSourceReferenceAbsent === true || proof.excludesSelectedDomain
+        );
         if (missingRelative && imp) domainMissing.add(imp.source);
-        const qualified = proof.excludesSelectedDomain || proof.positivePaths.length > 0;
+        // The expression validator admits a positive witness only for a
+        // singleton operand. A finite candidate bound cannot resolve a call.
+        const positivePaths = linkedDestination?.positivePath ? [linkedDestination.positivePath] : proof.positivePaths;
+        const qualified = externalOrLocalExclusion || proof.excludesSelectedDomain || positivePaths.length > 0;
+        const bound = linkedBound ?? (reader?.expressionReference ? proof.selectedTargetUpperBound : undefined);
         ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate: "missing-source-import",
           source: { kind: "file", identity: testFile.relativePath }, capability: "imports",
           actualStatus: proof.outcome, status: missingRelative ? "FINDING_SUPPORTED"
             : qualified ? "QUALIFIED" : "UNDETERMINED", mandatory: true, diagnostic: proof.reasonCode ?? "",
-          reason: qualified ? "Validated R3 expression reference or selected-domain exclusion."
-            : "Dynamic import evidence has no exact witness or complete selected-domain exclusion.",
+          reason: linkedDestination?.directExternalReferenceExcluded ? "Validated linked direct external package exclusion."
+            : qualified ? (linkedDestination && (externalOrLocalExclusion || linkedDestination.positivePath)
+            ? "Validated linked ordinary import destination for a complete singleton expression."
+            : "Validated R3 expression reference or selected-domain exclusion.")
+            : bound ? "Dynamic import evidence has a finite selected-target bound without qualified destination coverage."
+              : "Dynamic import evidence has no exact witness or complete selected-domain exclusion.",
           proof: { kind: "import-domain", snapshotId: proof.snapshotId,
-            references: [proof.expressionFactId, ...(linkedImportFactId ? [linkedImportFactId] : []), ...proof.positivePaths] },
+            references: [proof.expressionFactId, ...(linkedImportFactId ? [linkedImportFactId] : []),
+              ...(qualified ? positivePaths : bound ?? [])] },
         });
       }
       const partialImports = observed?.kit?.capabilities.imports === "partial";
-      if (partialImports) {
+      const accountedImports = partialImports && jsTs && scopedDomains !== undefined &&
+        observed.imports.every(imp => qualifyKitImportPredicate(observed, imp) === "QUALIFIED_POSITIVE") &&
+        reader?.explicitImportsCompleteWithExpressions?.(testFile.relativePath, observed.imports.length);
+      if (accountedImports && reader) {
+        ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate: "imports evidence",
+          source: { kind: "file", identity: testFile.relativePath }, capability: "imports",
+          actualStatus: "partial", status: "QUALIFIED", mandatory: true, diagnostic: "",
+          reason: "Authenticated explicit imports and complete expression inventory account for the import observations.",
+          proof: { kind: "import-domain", snapshotId: reader.snapshotId,
+            references: scopedDomains.map(({ proof }) => proof.expressionFactId) } });
+      }
+      if (partialImports && !accountedImports) {
         const reason = observed.diagnostics.map(d => d.code + ": " + d.message).join("; ");
         if (!ctx.reportUnavailable) throw new KitSourceEvidenceAcquisitionError("capability-insufficient", testFile.relativePath + " requires complete imports. " + reason);
         ctx.reportUnavailable(DETECTOR_ID, "missing-source-import", testFile.relativePath, reason);
       }
       let kitMissing = domainMissing;
-      if (!partialImports) {
+      if (!partialImports || jsTs) {
         try {
           kitMissing = new Set([...domainMissing, ...await kitMissingImports(ctx, testFile.relativePath, content, observed, linked)]);
         } catch (error) {
@@ -191,7 +217,7 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
       // identical id is deduplicated by deduplicateIssuesById() below.
       // Domain-backed linked imports retain their own authenticated inference
       // even when a separate expression leaves the file inventory partial.
-      const parsedFacts = domainMissing.size ? observed : getImportSourceFacts(sourceFactsIndex, testFile.relativePath);
+      const parsedFacts = kitMissing.size ? observed : getImportSourceFacts(sourceFactsIndex, testFile.relativePath);
       if (parsedFacts?.language === "python") {
         // v0.3.2 Batch 2 -- Python relative imports use dotted-module
         // notation (".module", "..pkg.module"), not TS/JS's path-like
@@ -252,33 +278,56 @@ async function kitMissingImports(ctx: AuditDetectorContext, filePath: string, co
   // A lexical import candidate still needs real parsed facts and fails closed.
   if (reader.jsonRawLiteralContent === "selected-test-json-v1" && filePath.endsWith(".json") &&
       facts?.parseStatus === "unsupported" && reader.selectedFile(filePath).status === "unsupported" && raw.length === 0) return missing;
-  if (!facts || facts.kit?.capabilities.imports !== "complete") throw new KitSourceEvidenceAcquisitionError("capability-insufficient", filePath + " requires complete imports.");
+  const jsTs = facts?.language === "typescript" || facts?.language === "javascript";
+  const importsCapability = facts?.kit?.capabilities.imports;
+  if (!facts || (importsCapability !== "complete" && !(jsTs && importsCapability === "partial"))) {
+    throw new KitSourceEvidenceAcquisitionError("capability-insufficient", filePath + " requires complete imports.");
+  }
   // A complete semantic inventory determines actual imports. Text inside a
   // fixture string/comment is not another import requiring target proof.
   // Every real import below still requires its authenticated fact and proof.
-  if (raw.some(specifier => !facts.imports.some(fact => fact.source === specifier)) && facts.kit.capabilities.exports !== "complete") {
+  if (raw.some(specifier => !facts.imports.some(fact => fact.source === specifier)) && facts.kit?.capabilities.exports !== "complete") {
     const reason = "Relative lexical candidates require complete export evidence to rule out an unrecorded re-export; incomplete exports do not establish absence.";
     if (!ctx.reportUnavailable) throw new KitSourceEvidenceAcquisitionError("capability-insufficient", reason);
     ctx.reportUnavailable(DETECTOR_ID, "missing-source-import", filePath, reason, "exports");
   }
   const reExports = reader.reExportSpecifiers?.(filePath);
   if (!reExports && facts.exports.some(fact => fact.exportOrigin === "re-export")) {
-    throw new KitSourceEvidenceAcquisitionError("capability-insufficient", filePath + " lacks authenticated re-export source identities.");
+    const reason = filePath + " lacks authenticated re-export source identities.";
+    if (!jsTs || !ctx.reportUnavailable || (!reader.ordinarySourceReference && importsCapability === "complete")) {
+      throw new KitSourceEvidenceAcquisitionError("capability-insufficient", reason);
+    }
+    ctx.reportUnavailable(DETECTOR_ID, "missing-source-import", filePath, reason, "exports");
   }
   const reExportTargets = reader.reExportTargets?.(filePath);
   for (const specifier of new Set(reExports ?? [])) {
     if (!specifier.startsWith(".")) continue;
     const targets = reExportTargets?.filter(fact => fact.sourceSpecifier === specifier) ?? [];
-    if (targets.length > 0 && (facts.language === "typescript" || facts.language === "javascript")) {
-      const proofs = await Promise.all(targets.map(fact => reader.importTarget(fact.id)));
-      if (proofs.every(proof => proof.status === "present")) continue;
-      if (reader.jsTsRelativeImportCandidateProof === "mjs-extensionless-complete-v1" &&
-          proofs.every(proof => proof.status === "proven-missing")) {
+    let detail = "";
+    if (targets.length > 0 && jsTs) {
+      const proofs = await Promise.all(targets.map(async fact => {
+        try { return await reader.importTarget(fact.id); }
+        catch (error) {
+          if ((!reader.ordinarySourceReference && importsCapability === "complete") ||
+              !(error instanceof KitSourceEvidenceAcquisitionError) ||
+              error.category !== "capability-insufficient" || !ctx.reportUnavailable) throw error;
+          return error;
+        }
+      }));
+      const outcomes = proofs.map((proof): ReturnType<typeof jsTsImportOutcome> => proof instanceof KitSourceEvidenceAcquisitionError
+        ? { reason: "Proof acquisition unavailable. " + proof.message }
+        : jsTsImportOutcome(reader, proof, true));
+      if (outcomes.every(outcome => outcome.status === "present")) continue;
+      if (outcomes.every(outcome => outcome.status === "missing")) {
         missing.add(specifier);
         continue;
       }
+      if (reader.ordinarySourceReference || importsCapability === "partial") {
+        detail = outcomes.flatMap(outcome => outcome.reason ? [outcome.reason] : []).join(" ");
+      }
     }
-    const reason = `Re-export ${specifier} lacks qualified export-target proof; a complete import inventory does not establish export-target presence or absence.`;
+    const reason = `Re-export ${specifier} lacks qualified export-target proof; a complete import inventory does not establish export-target presence or absence.` +
+      (detail ? " " + detail : "");
     if (!ctx.reportUnavailable) throw new KitSourceEvidenceAcquisitionError("capability-insufficient", reason);
     ctx.reportUnavailable(DETECTOR_ID, "missing-source-import", filePath, reason, "exports");
   }
@@ -287,18 +336,19 @@ async function kitMissingImports(ctx: AuditDetectorContext, filePath: string, co
     const applicable = facts.language === "java" || facts.language === "kotlin" ? jvmImportLooksPossiblyLocal(imp) : imp.source.startsWith(".");
     if (!applicable) continue;
     if (!imp.provenance?.factId) throw new KitSourceEvidenceAcquisitionError("artifact-invalid", filePath + " import has no validated fact identity.");
+    if (importsCapability === "partial" && qualifyKitImportPredicate(facts, imp) !== "QUALIFIED_POSITIVE") {
+      throw new KitSourceEvidenceAcquisitionError("artifact-invalid", filePath + " import differs from the authenticated partial inventory.");
+    }
     try {
       const proof = await reader.importTarget(imp.provenance.factId);
+      if (jsTs) {
+        const outcome = jsTsImportOutcome(reader, proof, false, imp.targetPaths);
+        if (outcome.status === "missing") missing.add(imp.source);
+        if (outcome.status) continue;
+        throw new KitSourceEvidenceAcquisitionError("capability-insufficient", filePath + " import " + imp.source + " " + outcome.reason);
+      }
       if ((facts.language === "java" || facts.language === "kotlin") && !proof.declarationProof) throw new KitSourceEvidenceAcquisitionError("capability-insufficient", filePath + " JVM import requires qualified declaration-domain evidence.");
       if (proof.status === "outside-selected-roots" || proof.status === "indeterminate") throw new KitSourceEvidenceAcquisitionError("capability-insufficient", filePath + " import " + imp.source + " remains " + proof.status + " (" + proof.reasonCode + ").");
-      if (facts.language === "typescript" || facts.language === "javascript") {
-        if (proof.status === "proven-missing" && reader.jsTsRelativeImportCandidateProof !== "mjs-extensionless-complete-v1") {
-          throw new KitSourceEvidenceAcquisitionError("capability-insufficient", filePath + " import " + imp.source + " lacks qualified legacy .mjs/extensionless candidate proof semantics.");
-        }
-        if (proof.status === "present" && !imp.targetPaths?.some((target) => proof.candidatePaths.includes(target) && /\.(ts|tsx|js|mjs|cjs)$/.test(target))) {
-          throw new KitSourceEvidenceAcquisitionError("capability-insufficient", filePath + " import target presence is outside the verified legacy candidate policy.");
-        }
-      }
       if (proof.status === "proven-missing") missing.add(imp.source);
     } catch (error) {
       if (!(error instanceof KitSourceEvidenceAcquisitionError) || error.category !== "capability-insufficient" || !ctx.reportUnavailable) throw error;
@@ -306,6 +356,34 @@ async function kitMissingImports(ctx: AuditDetectorContext, filePath: string, co
     }
   }
   return missing;
+}
+
+function jsTsImportOutcome(
+  reader: KitSourceReader, proof: Awaited<ReturnType<KitSourceReader["importTarget"]>>,
+  reExport: boolean, indexedTargets?: readonly string[],
+): { status?: "present" | "missing"; reason?: string } {
+  if (reader.ordinarySourceReference && /^\.\.?\//.test(proof.sourceSpecifier)) {
+    if (proof.qualifiedSourceReferencePath) return { status: "present" };
+    if (proof.applicableSourceReferenceAbsent) return { status: "missing" };
+  }
+  if (proof.status === "proven-missing" && reader.jsTsRelativeImportCandidateProof === "mjs-extensionless-complete-v1") {
+    return { status: "missing" };
+  }
+  if (reader.ordinarySourceReference) {
+    if (proof.selectedTargetUpperBound !== undefined) {
+      return { reason: proof.selectedTargetUpperBound.length
+        ? "has a finite selected-target bound without a qualified source reference."
+        : "has an empty selected-target bound without applicable physical absence." };
+    }
+    return { reason: "lacks a qualified source reference (" + (proof.ordinarySourceReferenceReason ?? proof.reasonCode) + ")." };
+  }
+  if (proof.status === "present" && (reExport ||
+      indexedTargets?.some(target => proof.candidatePaths.includes(target) && /\.(ts|tsx|js|mjs|cjs)$/.test(target)))) {
+    return { status: "present" };
+  }
+  if (proof.status === "present") return { reason: "target presence is outside the verified legacy candidate policy." };
+  if (proof.status === "proven-missing") return { reason: "lacks qualified legacy .mjs/extensionless candidate proof semantics." };
+  return { reason: "remains " + proof.status + " (" + proof.reasonCode + ")." };
 }
 
 function findMissingSourceImports(ctx: AuditDetectorContext, testRelativePath: string, content: string, kitMissing: Set<string>): AuditIssue[] {
@@ -654,13 +732,19 @@ function findTestModifierUsage(ctx: AuditDetectorContext, file: InventoryFileEnt
   const positives = bound && (domain.producerStatus === "parsed" || domain.producerStatus === "partial") &&
     (domain.capability === "complete" || domain.capability === "partial") ? domain.observations : [];
   const modifierCapability = domain?.directModifierCapability ?? domain?.capability;
-  const complete = bound && modifierCapability === "complete" && domain.producerStatus === "parsed";
+  const reader = ctx.kitSourceReader;
+  const supplied = ctx.sourceFacts?.provider === "kit" && snapshot?.traversalComplete &&
+    snapshot.snapshotId === reader?.snapshotId ? reader?.testModifierProof?.(file.relativePath) : undefined;
+  const proof = supplied?.originFile === file.relativePath ? supplied : undefined;
+  const complete = proof ? proof.coverage === "complete"
+    : bound && modifierCapability === "complete" && domain.producerStatus === "parsed";
 
   if (!complete) {
     // Raw text can keep a previously checked candidate in scope. It cannot
     // establish an executable call, or qualify the unknown observation domain.
-    const mandatory = /\b(?:describe|it|test)\s*\.\s*(?:skip|only)\s*\(/.test(content);
-    const reason = "Executable modifier observations are unavailable or incomplete for the selected file.";
+    const mandatory = proof?.coverage === "partial" || /\b(?:describe|it|test)\s*\.\s*(?:skip|only)\s*\(/.test(content);
+    const reason = "Executable modifier observations are unavailable or incomplete for the selected file." +
+      (proof ? " " + proof.reasonCodes.join(", ") : "");
     if (mandatory && !ctx.reportCoverage && ctx.reportUnavailable) {
       ctx.reportUnavailable(DETECTOR_ID, "executable test modifiers", file.relativePath, reason, "test-observations");
     } else if (mandatory && !ctx.reportCoverage) {
@@ -668,27 +752,45 @@ function findTestModifierUsage(ctx: AuditDetectorContext, file: InventoryFileEnt
     } else {
       ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate: "executable test modifiers",
         source: { kind: "file", identity: file.relativePath }, capability: "test-observations",
-        actualStatus: bound ? (modifierCapability ?? "unavailable") : "unavailable", status: "UNAVAILABLE", mandatory,
+        actualStatus: proof?.coverage ?? (bound ? (modifierCapability ?? "unavailable") : "unavailable"), status: "UNAVAILABLE", mandatory,
         diagnostic: "", reason });
     }
   }
 
-  const lines = splitLines(content);
-  const issues: AuditIssue[] = [];
+  const observations = new Map<string, { modifier: "skip" | "only"; name: string; line: number; playwright: boolean }>();
+  const record = (origin: string, modifier: "skip" | "only", name: string, span: {
+    startLine: number; startColumn: number | null; endLine: number | null; endColumn: number | null;
+  }, playwright: boolean) => {
+    const { startLine, startColumn, endLine, endColumn } = span;
+    const key = JSON.stringify([origin, modifier, startLine, startColumn, endLine, endColumn]);
+    observations.set(key, { modifier, name, line: startLine, playwright });
+  };
   for (const fact of positives) {
     const modifier = fact.observationKind === "test-modifier-only" ? "only"
       : fact.observationKind === "test-modifier-skip" ? "skip" : undefined;
     if (!modifier || fact.originPath !== file.relativePath) continue;
 
-    const line = fact.provenance.startLine;
+    // Modifier facts have a validated runner name.
+    record(fact.originPath, modifier, fact.name!, fact.provenance, false);
+  }
+  for (const { modifier, calleeSpan } of proof?.observations ?? []) {
+    record(calleeSpan.path, modifier, "test", calleeSpan, true);
+  }
+
+  const lines = splitLines(content);
+  const issues: AuditIssue[] = [];
+  for (const { modifier, name, line, playwright } of observations.values()) {
     const focus = modifier === "only";
-    const call = `${fact.name}.${modifier}(`;
+    const call = `${name}.${modifier}(`;
     issues.push(makeCodeRotIssue({
       auditType: "code-rot",
       detectorId: DETECTOR_ID,
       idCues: [file.relativePath, modifier + "-usage", String(line)],
       title: `Committed "${call}" in "${file.relativePath}"`,
-      description: `${file.relativePath}:${line} uses "${call}" -- ` + (focus
+      description: playwright
+        ? `${file.relativePath}:${line} contains a Playwright "${call}" call. ` +
+          (focus ? "Review the focused test modifier before merging." : "Confirm that the skip call is intentional.")
+        : `${file.relativePath}:${line} uses "${call}" -- ` + (focus
         ? "this silently excludes every other test in a CI run and is almost always accidental."
         : "confirm this is intentional and not accidentally committed."),
       severity: focus ? "high" : "medium",
@@ -696,10 +798,11 @@ function findTestModifierUsage(ctx: AuditDetectorContext, file: InventoryFileEnt
       falsePositiveRisk: "low",
       category: "test-rot",
       recommendedAction: focus ? "Remove .only before committing/merging."
+        : playwright ? "Review whether the .skip call is intentional and document when it applies."
         : "Remove .skip if the test should run, or add a comment explaining why it is skipped.",
       suggestedFixStrategy: `Remove "${call}" at ${file.relativePath}:${line}` +
-        (focus ? "." : " or document why it is intentionally skipped."),
-      validationCommands: [`npx vitest run ${file.relativePath}`],
+        (focus ? "." : playwright ? " or document when it should apply." : " or document why it is intentionally skipped."),
+      validationCommands: [playwright ? `npx playwright test ${file.relativePath}` : `npx vitest run ${file.relativePath}`],
       releaseBlocking: focus,
       implementationBlocking: false,
       autoFixEligible: false,

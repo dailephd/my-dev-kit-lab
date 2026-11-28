@@ -11,15 +11,18 @@ import { assertRequiredCapabilities, hasQualifiedPartialImports, type KitFileRec
 const roots: string[] = [];
 function fixture(profile: 'exact-path' | 'unproved-runtime-mapping' | 'partial') {
   const partial = profile === 'partial';
+  const ambiguous = profile === 'unproved-runtime-mapping';
   const extension = profile === 'exact-path' ? 'js' : 'ts';
   const sdkPath = `src/sdk.${extension}`;
+  const requestedModule = ambiguous ? "sdk" : "sdk.js";
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lab-partial-imports-'));
   roots.push(root);
   const files = {
     'package.json': JSON.stringify({name:'fixture',version:'1.0.0',scripts:{test:'vitest run'}}),
     [sdkPath]: 'export const alive = true;\n',
-    [`src/load.${extension}`]: partial ? "import {pathToFileURL} from 'node:url'; const runtime={sdk:'verified/sdk.js'}; export async function load(){return await import(pathToFileURL(runtime.sdk).href)}\n" : "export async function load(){return await import('./sdk.js')}\n",
-    [`tests/load.test.${extension}`]: "import '../src/sdk.js';\nit.skip('known independent finding',()=>{});\n" + (partial ? "const target='./unknown.js'; await import(target); await import(String(target));\n" : "await import('../src/sdk.js');\n" +
+    ...(ambiguous ? { 'src/sdk.js': 'export const alternate = true;\n' } : {}),
+    [`src/load.${extension}`]: partial ? "import {pathToFileURL} from 'node:url'; const runtime={sdk:'verified/sdk.js'}; export async function load(){return await import(pathToFileURL(runtime.sdk).href)}\n" : `export async function load(){return await import('./${requestedModule}')}\n`,
+    [`tests/load.test.${extension}`]: `import '../src/${requestedModule}';\nit.skip('known independent finding',()=>{});\n` + (partial ? "const target='./unknown.js'; await import(target); await import(String(target));\n" : `await import('../src/${requestedModule}');\n` +
       (profile === 'exact-path' ? "await import('../src/load.js');\n" : '')),
     ...(profile === 'exact-path' ? {} : { 'src/old/retired.ts': '// independent old directory finding\n' }),
     ...(partial ? {'tests/fixtures/view.html': '<main>Unsupported content stays unknown</main>\n', 'tests/unresolved.test.ts': "import '../unselected/outside.js'; test.only('another independent finding',()=>{});\n"} : {}),
@@ -62,7 +65,7 @@ describe('qualified partial import coverage',()=>{
     ]));
     expect(result.issues.some(i=>i.detectorId==='test-rot' && i.title.includes('.skip'))).toBe(true);
   },120000);
-  it('keeps an unproved TypeScript runtime mapping incomplete without inferring missing or unused source', async () => {
+  it('keeps an ambiguous TypeScript runtime mapping incomplete without inferring missing or unused source', async () => {
     const root = fixture('unproved-runtime-mapping');
     const result = await runAudit({ config: config(root), toolRoot: root });
 
@@ -73,7 +76,8 @@ describe('qualified partial import coverage',()=>{
         predicate: 'missing-source-import',
         source: { kind: 'file', identity: 'tests/load.test.ts' },
         capability: 'imports',
-        status: 'UNDETERMINED',
+        status: 'UNAVAILABLE',
+        reason: expect.stringContaining('finite selected-target bound'),
         mandatory: true,
       }),
       expect.objectContaining({
@@ -85,7 +89,8 @@ describe('qualified partial import coverage',()=>{
       }),
     ]));
     expect(result.issues.some(i=>i.detectorId==='test-rot' && i.title.includes('.skip'))).toBe(true);
-    expect(result.issues.filter(i=>i.title.includes('missing source') || i.title.includes('no in-repo') || i.title.includes('no importer'))).toEqual([]);
+    expect(result.issues.filter(i => i.title.includes('missing source') ||
+      (i.title.includes('no detected in-repo importer') && i.affectedFiles.some(file => /^src\/sdk\.(js|ts)$/.test(file))))).toEqual([]);
   }, 120000);
 
   it('continues independent checks across mixed files without false missing/dead import conclusions; required coverage cannot pass even with fail-on none',async()=>{

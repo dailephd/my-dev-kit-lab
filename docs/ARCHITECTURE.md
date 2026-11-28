@@ -1481,6 +1481,27 @@ links preserve the earlier execution. The digest of an externally supplied
 export identifies those bytes, while export-to-target provenance can remain
 unknown.
 
-## Planned LAB-FACTS-02 extension boundary
+## LAB-FACTS-02 extension boundary
 
-The [v0.11.1 corrective reservation](ROADMAP.md#v0111--predicate-scoped-audit-qualification-correction-lab-facts-02) is planned, not implemented. The current managed R3 reader already distinguishes qualified expression observations and selected-domain proof from unresolved target references. Preserve existing `kitSourceProvider.ts` acquisition, `kitSourceEvidence.ts` validation, `kitSourceAdapter.ts` projection, `auditRegistry.ts` applicability and existing detector/result/report ownership. Extend only demonstrated residual gaps: independently qualify supported declaration/export facts and import-expression enumeration, and require target/exclusion evidence for conclusions that depend on it. Independently supported findings survive other unavailable predicates; mandatory unknowns block completeness. Kit remains the source parser and proof producer. No fallback parser, blanket file exclusion, second audit engine or altered historical oracle.
+The [0.11.1 correction](ROADMAP.md#v0111--predicate-scoped-audit-qualification-correction-lab-facts-02) uses Kit 1.16.1 through Lab's own installation. `kitSourceProvider.ts` binds the registry archive and installed executable to schema `1.2.0` and extractor `source-audit-v1.8.0`. The paired archive/root override selects an allowlisted local package. FACTS02 admission verifies archive, canonical installed CLI, source and receipt identity, and installed member bytes. Historical profiles retain their own narrower capabilities.
+
+The exact NodeNext producer uses the existing ordinary reference validator.
+Lab rechecks present and absent configuration, package and candidate
+premises when it consumes a proof, including cached responses. A positive
+source reference applies to the selected file. Reverse-reference coverage
+also depends on all relevant origins, and immediate re-exports establish
+only the direct target.
+
+The provider independently admits ordinary-reference, computed-positive, Playwright provenance, and Playwright request capabilities. It explicitly requests the modifier proof on schema `1.2.0` page zero only for a qualified producer that supports negotiation and eligible source. Historical producers retain their own negotiation profiles. Direct external-reference evidence can exclude an edge from the selected local domain under its qualified premises. Arbitrary module resolution remains unsupported. Vendor/generated raw-only admission uses authenticated inventory and exact byte or line evidence, preserving scope, freshness and limits. Raw-only inputs contribute no semantic source facts.
+
+`kitSourceEvidence.ts` validates the wire objects, premise and span identities, and selection and source bindings. The managed reader and `kitSourceAdapter.ts` keep observation completeness separate from destination and predicate qualification. `deadCodeCandidateDetector.ts` can discharge an individual candidate with independent qualified ordinary or computed positives. A file-level positive does not establish symbol-level use. A negative conclusion requires complete relevant-origin accounting and established exclusion for the candidate from every applicable origin. Complete finite domains can exclude disjoint candidates. Overlapping domains, unresolved destinations, or unaccounted partial observations can leave mandatory obligations open.
+
+`testRotDetector.ts` consumes qualified ordinary imports, immediate re-export references, and computed evidence. A partial inventory may account for observed sites without qualifying their destinations. An exact positive discharges the supported obligation. Finite unresolved alternatives remain obligations when no applicable positive or absence proves the result. An empty selected-domain intersection can support exclusion under qualified premises. A physical missing-file finding requires applicable absence evidence.
+
+The test-rot modifier predicate consumes qualified direct Playwright bindings, locally extended runners, and one-hop imported extended runners. It preserves conditional skip review and only observations independently when other coverage is partial. General diagnostic truncation is separate from modifier-specific completeness. A syntactic condition is not evaluated at runtime. Under `auditRunner.ts` and the CLI exit mapping, mandatory incomplete coverage or fatal acquisition takes precedence over the finding threshold, including `--fail-on none`.
+
+The stale-command detector uses `docCommandReferences.ts` and `sourceOfTruth.ts` to resolve literal package context, including supported `npm --prefix` forms. The release-rot detector uses an exact semantic `CHANGELOG.md` heading match. Both retain existing finding IDs and policy. See [Audit commands](COMMANDS.md#lab-facts-02-compatibility-note).
+
+### Deferred capability boundaries
+
+General package and package-subpath resolution, arbitrary bundler plugins and package mapping, unsupported dotted source basenames, general JSON asset routing, PowerShell analysis, and global augmentation modeling remain deferred. Broader computed extensionless and alias destinations, runtime-generated module destinations, runtime temporary paths, `pathToFileURL` call results, worker-location-derived destinations, and unrestricted wrapper parameter analysis remain outside the qualified profile. Finite operand enumeration does not supply missing destination or exclusion premises.

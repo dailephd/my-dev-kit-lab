@@ -63,6 +63,30 @@ it("quarantines an incomplete response and independently recovers only its sibli
   expect(fallback).toBe(1);
 });
 
+it("includes negotiated page zero in authenticated batch identity and preserves its standalone recovery", async () => {
+  const path = "tests/probe.spec.ts";
+  const bySelector = [
+    { selector: "audit-files", page: 0 },
+    { selector: "audit-file", path, page: 0, testModifierProof: true },
+    { selector: "audit-file", path, page: 1 },
+  ] as const;
+  const recovered: unknown[] = [];
+  const transport = createKitBatchTransport({
+    identity, signal: new AbortController().signal, itemError: code => new Error(code),
+    async execute(packet) {
+      const { requests } = JSON.parse(packet.bytes.toString());
+      expect(requests).toEqual(bySelector.map((item, index) => ({ ...item, id: String(index + 1) })));
+      return { exit: 2, body: envelope(packet, true) };
+    },
+  });
+  const results = await Promise.allSettled(bySelector.map(item => transport("lookup", item, async fallback => {
+    expect(fallback?.reason).toBe("incomplete");
+    recovered.push(item);
+  })));
+  expect(results.map(result => result.status)).toEqual(["rejected", "fulfilled", "fulfilled"]);
+  expect(recovered).toEqual(bySelector.slice(1));
+});
+
 it("bounds request count, input bytes and output-limit fallback", async () => {
   const fills: number[] = [];
   let independent = 0;

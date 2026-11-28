@@ -12,6 +12,8 @@ v0.9.0 adds the `agent-success-rate` plugin, the eighth registered experiment pl
 
 **Lab v0.11.0** uses the runtime dependency @dailephd/my-dev-kit@1.16.0 for source-evidence audits. LAB-EVIDENCE-01 supports authorized capture, import, and scoped certification. See [current acceptance and limitations](docs/CURRENT_STATE.md#v0110-source-evidence-and-current-product-acceptance).
 
+Lab 0.11.1 pins exact Kit 1.16.1 for LAB-FACTS-02 source evidence. It strengthens predicate-scoped reference and Playwright evidence and corrects package-command and changelog qualification. See the [implementation state](docs/CURRENT_STATE.md#next-corrective-planning-reservation-2026-11-25).
+
 The v0.9.2 release corrected external npm package entrypoint validation, preserved strict Lab self-package validation, eliminated nine inherited false positives, corrected Semgrep failed/incomplete-scan evidence, and included campaign filesystem identity, path-safety, and cross-platform corrections. Security verdict strictness is unchanged. The v0.9.2 release-document state is final; actual npm publication is established separately through registry evidence.
 
 The v0.9.3 release adds configurable Codex/Claude prompt contracts, strict structured-diff output handling, generic report sections, HTML metric evidence and caveats, source-based gallery items including tutorial manifests, and prompt-template comparison. See [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md) for release and validation details.

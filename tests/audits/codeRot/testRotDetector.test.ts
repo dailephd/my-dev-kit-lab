@@ -922,6 +922,31 @@ async function executeWithKit(ctx: AuditDetectorContext) {
 }
 
 describe("authenticated executable test modifiers", () => {
+  it("keeps the modifier obligation open for unsupported Playwright runner bindings on the published stream", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", "{}");
+      const direct = 'import { test } from "@playwright/test";';
+      const unsupported = {
+        unknown: 'import { test } from "unqualified-runner";',
+        shadowed: direct + '\nfunction shadow(test: any) { test.only("shadow", () => {}); }',
+        mutated: direct + "\ntest = replacement;",
+        typeOnly: 'import type { test } from "@playwright/test";',
+        unrelated: 'const base = { extend: () => ({ skip() {} }) };\nconst test = base.extend();',
+      };
+      for (const [name, prefix] of Object.entries(unsupported)) {
+        writeFile(root, `tests/${name}.test.ts`, prefix + '\ntest.skip(guard, "review");\nit.only("independent", () => {});');
+      }
+      const ctx = buildContext(root);
+      const result = await runAudit({ config: ctx.config, toolRoot: root, registry: [TEST_ROT_DETECTOR] });
+      expect(result.exitCode).toBe(2);
+      const modifierGaps = result.coverage!.filter(row => row.predicate === "executable test modifiers" && row.mandatory);
+      expect(modifierGaps.map(row => row.source.identity).sort())
+        .toEqual(Object.keys(unsupported).map(name => `tests/${name}.test.ts`).sort());
+      expect(result.issues.filter(issue => issue.id.includes("only-usage"))).toHaveLength(Object.keys(unsupported).length);
+    } finally { cleanup(root); }
+  }, 120000);
+
   it("keeps real modifiers in a fixture test and rejects comments and generated data", async () => {
     const root = makeTempDir();
     try {

@@ -96,20 +96,38 @@ beforeEach(() => {
   forceProvider.override = undefined;
 });
 
-it("writes retained findings and public coverage errors while CLI fail-on none returns 2", async () => {
-  const root = fixture({ "tests/check.test.ts": "const name='./unknown.js'; await import(name);\ntest.only('retained',()=>{});\n" });
+it.each([
+  {
+    description: "writes retained findings and public coverage errors while CLI fail-on none returns 2",
+    source: "await import(process.env.LAB_FIXTURE_DESTINATION);",
+    exitCode: 2,
+  },
+  {
+    description: "writes retained findings and exits 0 for a constant import disjoint from the selected domain",
+    source: "const name='./unknown.js'; await import(name);",
+    exitCode: 0,
+  },
+])("$description", async ({ source, exitCode }) => {
+  const root = fixture({ "tests/check.test.ts": `${source}\ntest.only('retained',()=>{});\n` });
   const out = path.join(root, "audit-out");
   forceProvider.mode = "kit";
   forceProvider.override = { registry: DEFAULT_AUDIT_REGISTRY.filter(d => d.id === "test-rot") };
   const error = vi.spyOn(console, "error").mockImplementation(() => {});
   const log = vi.spyOn(console, "log").mockImplementation(() => {});
   try {
-    expect(await runAuditCommandFromArgs(["--target", root, "--include", "tests", "--fail-on", "none", "--out", out])).toBe(2);
+    expect(await runAuditCommandFromArgs(["--target", root, "--include", "tests", "--fail-on", "none", "--out", out])).toBe(exitCode);
     const report = JSON.parse(fs.readFileSync(path.join(out, "code-rot-audit.json"), "utf8"));
     expect(report.schemaVersion).toBe("1.0");
-    expect(report.detectorErrors.some((e: {message: string}) => e.message.startsWith("PARTIAL_COVERAGE UNAVAILABLE:"))).toBe(true);
+    if (exitCode === 2) {
+      expect(report.detectorErrors).toEqual(expect.arrayContaining([expect.objectContaining({
+        id: "test-rot",
+        message: expect.stringMatching(/^PARTIAL_COVERAGE UNAVAILABLE: missing-source-import;.*UNSUPPORTED_EXPRESSION$/),
+      })]));
+    } else {
+      expect(report.detectorErrors).toEqual([]);
+    }
     expect(report.issues.some((i: {title: string}) => i.title.includes(".only"))).toBe(true);
-    expect(report.summary.finalExitCode).toBe(2);
+    expect(report.summary.finalExitCode).toBe(exitCode);
   } finally { forceProvider.mode = undefined; forceProvider.override = undefined; error.mockRestore(); log.mockRestore(); }
 }, 120000);
 

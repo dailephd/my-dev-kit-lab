@@ -1,16 +1,303 @@
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { expect, it } from "vitest";
 import { runAuditCommandFromArgs } from "../../src/commands/runAuditCommand.js";
 import { runMeasuredCommand } from "../../src/core/runMeasuredCommand.js";
 import { scanProjectInventory } from "../../src/audits/core/projectInventory.js";
-import { collectKitSourceFacts, type KitSourceReader, QUALIFIED_B3_P1_KIT, QUALIFIED_B5_P1_R7A_KIT } from "../../src/audits/core/kitSourceProvider.js";
+import type { KitFact } from "../../src/audits/core/kitSourceEvidence.js";
+import { collectKitSourceFacts, type KitSourceReader, type KitSourceProviderDependencies, QUALIFIED_CURRENT_PUBLISHED_KIT, QUALIFIED_B3_P1_KIT, QUALIFIED_B5_P1_R7A_KIT } from "../../src/audits/core/kitSourceProvider.js";
 
 const installedPackageRoot = process.env.LAB_R3_INSTALLED_KIT;
 const qualifiedArchivePath = process.env.LAB_R3_KIT_ARCHIVE;
 const currentInstalledRoot = process.env.LAB_B5_P1_R7B_KIT_ROOT;
 const currentArchive = process.env.LAB_B5_P1_R7B_KIT_ARCHIVE;
+
+const playwrightOrigin = "tests/playwright.test.ts";
+const playwrightWrapper = "tests/support/fixture.ts";
+const aliasedPlaywrightBase = 'import { test as base } from "@playwright/test";';
+const playwrightSkip = 'test.skip(process.env.GUARD, "intentional");';
+const playwrightOnly = 'test.only("focus", () => {});';
+
+function playwrightContractFixture(
+  target: string, workDir: string, kind: "direct" | "local" | "imported",
+  coverage: "complete" | "partial" | "omitted", qualified: boolean, batch = false, negotiated = false,
+) {
+  const factFiles: string[] = [];
+  const transports = new Set<string>();
+  const requests: { file: string; page: string; proof: boolean }[] = [];
+  const digest = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
+  const span = (path: string, line: number, startColumn: number, endColumn: number) =>
+    ({ path, startLine: line, startColumn, endLine: line, endColumn });
+  const deps: KitSourceProviderDependencies = {
+    installedPackageRoot: path.resolve("node_modules/@dailephd/my-dev-kit"),
+    expectation: QUALIFIED_CURRENT_PUBLISHED_KIT,
+    workDir, disableStream: true, disableBatch: !batch,
+    // Ordinary and computed admission alone must not admit the new extension.
+    testOnlyOrdinarySourceReference: qualified ? undefined : true,
+    testOnlyExpressionReference: qualified ? undefined : true,
+    testOnlyPlaywrightModifierProof: qualified ? true : undefined,
+    testOnlyPlaywrightProofRequest: negotiated ? true : undefined,
+    runCommand: async options => {
+      const args = options.args ?? [];
+      const requestProof = args.includes("--test-modifier-proof");
+      if (args.includes("--audit-file")) {
+        requests.push({ file: args[args.indexOf("--audit-file") + 1]!,
+          page: args[args.indexOf("--page") + 1]!, proof: requestProof });
+      } else {
+        expect(requestProof).toBe(false);
+      }
+      // The installed legacy CLI supplies only the original envelope.
+      const result = await runMeasuredCommand(requestProof && options.executable !== undefined
+        ? { ...options, args: args.filter(arg => arg !== "--test-modifier-proof") } : options);
+      if (!result.ok || (!args.includes("--audit-file") && !args.includes("--audit-batch-file"))) return result;
+      const body = JSON.parse(result.stdout);
+      const attach = (page: { file?: { path: string; contentSha256: string }; pageIndex: number; facts: KitFact[]; snapshotId: string }) => {
+        if (!page.file) return;
+        factFiles.push(page.file.path);
+        if (page.file.path !== playwrightOrigin || page.pageIndex !== 0 || coverage === "omitted") return;
+        const artifact = JSON.parse(fs.readFileSync(path.join(args[args.indexOf("--index") + 1]!, "source-audit-evidence.json"), "utf8"));
+        const selected = new Map<string, string>(artifact.files.map((file: { path: string; contentSha256: string }) =>
+          [file.path, file.contentSha256]));
+        const identity = { schemaVersion: "1.0.0", snapshotId: page.snapshotId,
+          selectionFingerprint: artifact.source.selectionFingerprint,
+          selectedDomainDigest: digest(JSON.stringify([...selected.keys()].sort())),
+          originFile: playwrightOrigin, originContentSha256: page.file.contentSha256 };
+        const wrapper = kind === "imported" ? (() => {
+          const fact = page.facts.find(item => item.kind === "import" && item.sourceSpecifier === "./support/fixture");
+          expect(fact?.importedNames).toContain("test");
+          const contentSha256 = selected.get(playwrightWrapper);
+          const candidateDomain = [playwrightWrapper, playwrightWrapper + "x"];
+          const importIdentity = { importFactId: fact!.id, sourceSpecifier: "./support/fixture" };
+          return { path: playwrightWrapper, contentSha256, exportBindingSpan: span(playwrightWrapper, 2, 13, 35),
+            importTargetProof: {
+              schemaVersion: "1.1.0", mode: "audit-import-target", snapshotId: page.snapshotId, originFile: playwrightOrigin,
+              ...importIdentity, candidatePaths: [playwrightWrapper], status: "present", reasonCode: "TARGET_IN_SELECTED_INVENTORY",
+              selectionComplete: true,
+              sourceReferenceProof: { ...identity, ...importIdentity, profile: "js-ts-selected-source-reference-v1",
+                pathIdentityProfile: "selected-source-path-v1", resolutionPlatform: process.platform === "win32" ? "win32" : "posix",
+                candidateEnumerationComplete: true, candidateDomain, reasonCode: null,
+                qualifiedReference: { targetPath: playwrightWrapper, targetContentSha256: contentSha256, referenceKind: "selected-source-reference" },
+                premiseRefs: [
+                  { path: playwrightWrapper, role: "candidate", state: "file", contentSha256 },
+                  { path: candidateDomain[1], role: "candidate", state: "absent", contentSha256: null },
+                  { path: "tsconfig.json", role: "config", state: "file",
+                    contentSha256: digest(fs.readFileSync(path.join(target, "tsconfig.json"))) },
+                ],
+              },
+            },
+          };
+        })() : null;
+        const basePath = wrapper?.path ?? playwrightOrigin;
+        const modifierLine = kind === "local" ? 3 : 2;
+        const proof = {
+          ...identity, profile: "js-ts-playwright-direct-extended-modifiers-v1", coverage,
+          runnerBinding: {
+            kind: kind === "direct" ? "direct-playwright" : `${kind}-extended-playwright`, localName: "test",
+            baseLocalName: kind === "direct" ? "test" : "base",
+            bindingSpan: kind === "local" ? span(playwrightOrigin, 2, 6, 28) : span(playwrightOrigin, 1, 9, 13),
+            baseImportSpan: span(basePath, 1, 9, kind === "direct" ? 13 : 21),
+            extensionSpan: kind === "direct" ? null : span(basePath, 2, wrapper ? 20 : 13, wrapper ? 35 : 28),
+            wrapper,
+          },
+          observations: [
+            ...(kind === "local" ? [] : [{ modifier: "skip", calleeSpan: span(playwrightOrigin, modifierLine, 0, 9),
+              callSpan: span(playwrightOrigin, modifierLine, 0, 43) }]),
+            { modifier: "only", calleeSpan: span(playwrightOrigin, modifierLine + 1, 0, 9),
+              callSpan: span(playwrightOrigin, modifierLine + 1, 0, 28) },
+          ],
+          reasonCodes: coverage === "partial" ? ["UNSUPPORTED_MODIFIER_FORM"] : [],
+        };
+        Object.assign(page, { testModifierProof: proof });
+      };
+      if (args.includes("--audit-batch-file")) {
+        transports.add("batch");
+        for (const item of body.results) if (item.status === "ok" && item.selector === "audit-file") attach(item.response);
+      } else {
+        transports.add("standalone");
+        attach(body);
+      }
+      return { ...result, stdout: JSON.stringify(body) };
+    },
+  };
+  return { deps, factFiles, transports, requests };
+}
+
+function writePlaywrightContractSource(target: string, kind: "direct" | "local" | "imported", unknownImport = false) {
+  fs.mkdirSync(path.join(target, "tests/support"), { recursive: true });
+  fs.writeFileSync(path.join(target, "package.json"), '{"name":"playwright-contract","type":"module"}\n');
+  const prefix = kind === "direct" ? ['import { test } from "@playwright/test";'] : kind === "local"
+    ? [aliasedPlaywrightBase, "const test = base.extend({});"] : ['import { test } from "./support/fixture";'];
+  fs.writeFileSync(path.join(target, playwrightOrigin), [
+    ...prefix, kind === "local" ? 'test["skip"]?.("unsupported");' : playwrightSkip, playwrightOnly,
+    ...(kind === "local" ? ['test?.skip("optional");', 'test.describe.skip("chain");'] : []),
+    ...(unknownImport ? ["void import(process.env.DESTINATION);"] : []), "",
+  ].join("\n"));
+  if (kind === "imported") {
+    fs.writeFileSync(path.join(target, "tsconfig.json"), '{"compilerOptions":{}}\n');
+    fs.writeFileSync(path.join(target, playwrightWrapper), aliasedPlaywrightBase + "\nexport const test = base.extend({});\n");
+  }
+}
+
+it("authenticates an immediate wrapper without fetching its fact page and rechecks all fresh premises", async () => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "lab-f02-playwright-reader-"));
+  let reader: KitSourceReader | undefined;
+  try {
+    const target = path.join(workspace, "target");
+    writePlaywrightContractSource(target, "imported");
+    const neighbor = "tests/support/neighbor.ts";
+    fs.writeFileSync(path.join(target, neighbor), "export {};\n");
+    const fixture = playwrightContractFixture(target, path.join(workspace, "kit"), "imported", "complete", true, true);
+    const snapshot = await collectKitSourceFacts({
+      targetRoot: target, inventory: scanProjectInventory(target), requiredPaths: [playwrightOrigin, neighbor],
+      requiredCapabilities: [], includeScriptsRoot: false, onReader: value => { reader = value; },
+    }, fixture.deps);
+    const read = () => reader!.testModifierProof!(playwrightOrigin);
+    expect(read()).toMatchObject({ coverage: "complete", runnerBinding: {
+      kind: "imported-extended-playwright", wrapper: { path: playwrightWrapper },
+    }, observations: [{ modifier: "skip" }, { modifier: "only" }] });
+    expect(fixture.factFiles.sort()).toEqual([playwrightOrigin, neighbor]);
+    expect([...fixture.transports]).toEqual(["batch"]);
+    expect(snapshot.files.find(file => file.relativePath === playwrightOrigin)?.kitTestObservations?.observations)
+      .not.toEqual(expect.arrayContaining([expect.objectContaining({ callSpan: expect.anything() })]));
+    for (const [name, change] of [
+      [playwrightWrapper, "export const test = 0;"], [playwrightOrigin, "export {};"],
+      ["tsconfig.json", '{"compilerOptions":{"rootDirs":["tests"]}}'],
+      [playwrightWrapper + "x", "export {};"],
+    ] as const) {
+      const file = path.join(target, name);
+      const original = fs.existsSync(file) ? fs.readFileSync(file) : null;
+      fs.writeFileSync(file, change);
+      try { expect(read).toThrow(/stale-evidence/); }
+      finally { if (original) fs.writeFileSync(file, original); else fs.unlinkSync(file); }
+      expect(read()?.coverage).toBe("complete");
+    }
+    const alternate = path.join(workspace, "outside");
+    fs.mkdirSync(alternate);
+    const wrapper = path.join(target, playwrightWrapper);
+    const support = path.dirname(wrapper);
+    fs.copyFileSync(wrapper, path.join(alternate, "fixture.ts"));
+    fs.renameSync(support, support + "-original");
+    fs.symlinkSync(alternate, support, "junction");
+    expect(read).toThrow(/stale-evidence/);
+    await reader!.dispose();
+    expect(read).toThrow(/reader is closed/);
+    reader = undefined;
+  } finally {
+    await reader?.dispose();
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
+}, 60_000);
+
+it("keeps a failed negotiated exact-file request fatal without a legacy retry", async () => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "lab-f02-negotiation-failure-"));
+  try {
+    const target = path.join(workspace, "target");
+    writePlaywrightContractSource(target, "direct");
+    const fixture = playwrightContractFixture(target, path.join(workspace, "kit"), "direct", "omitted", true, false, true);
+    const base = fixture.deps.runCommand!;
+    fixture.deps.runCommand = async options => {
+      const result = await base(options);
+      return options.args?.includes("--test-modifier-proof")
+        ? { ...result, ok: false, exitCode: 2, stderr: "negotiation failed" } : result;
+    };
+    await expect(collectKitSourceFacts({
+      targetRoot: target, inventory: scanProjectInventory(target), requiredPaths: [playwrightOrigin],
+      requiredCapabilities: [], includeScriptsRoot: false,
+    }, fixture.deps)).rejects.toMatchObject({ category: "subprocess-failed" });
+    expect(fixture.requests).toEqual([{ file: playwrightOrigin, page: "0", proof: true }]);
+  } finally { fs.rmSync(workspace, { recursive: true, force: true }); }
+}, 60_000);
+
+it("retains the request modifier on the real standalone fallback from a negotiated batch", async () => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "lab-f02-negotiation-fallback-"));
+  try {
+    const target = path.join(workspace, "target");
+    const neighbor = "tests/standalone.ts";
+    writePlaywrightContractSource(target, "direct");
+    fs.appendFileSync(path.join(target, playwrightOrigin),
+      Array.from({ length: 132 }, (_, index) => `const marker${index} = ${index};\n`).join(""));
+    fs.writeFileSync(path.join(target, neighbor), "export {};\n");
+    const fixture = playwrightContractFixture(target, path.join(workspace, "kit"), "direct", "omitted", true, true, true);
+    const base = fixture.deps.runCommand!;
+    let indexResult: Awaited<ReturnType<typeof base>> | undefined;
+    let batches = 0;
+    fixture.deps.runCommand = async options => {
+      const args = options.args ?? [];
+      const batch = args.indexOf("--audit-batch-file");
+      if (batch >= 0) {
+        const { requests } = JSON.parse(fs.readFileSync(args[batch + 1]!, "utf8"));
+        expect(requests).toEqual([playwrightOrigin, neighbor].map(file => ({
+          id: expect.any(String), selector: "audit-file", path: file, page: 0, testModifierProof: true,
+        })));
+        batches++;
+        return { ...indexResult!, ok: false, exitCode: 2, stdout: "", stderr: "AUDIT_BATCH_OUTPUT_LIMIT: fixture" };
+      }
+      const result = await base(options);
+      if (args[1] === "index") indexResult = result;
+      return result;
+    };
+    await collectKitSourceFacts({
+      targetRoot: target, inventory: scanProjectInventory(target), requiredPaths: [playwrightOrigin, neighbor],
+      requiredCapabilities: [], includeScriptsRoot: false,
+    }, fixture.deps);
+    expect(batches).toBe(1);
+    expect(fixture.requests.filter(request => request.proof))
+      .toEqual([playwrightOrigin, neighbor].map(file => ({ file, page: "0", proof: true })));
+    expect(fixture.requests.filter(request => !request.proof))
+      .toEqual([{ file: playwrightOrigin, page: "1", proof: false }]);
+  } finally { fs.rmSync(workspace, { recursive: true, force: true }); }
+}, 60_000);
+
+it.each([
+  { kind: "direct", coverage: "complete", qualified: true, threshold: "none", exit: 0, negotiated: true },
+  { kind: "direct", coverage: "complete", qualified: true, threshold: "high", exit: 1 },
+  { kind: "direct", coverage: "complete", qualified: false, threshold: "none", exit: 2, negotiated: true },
+  { kind: "direct", coverage: "omitted", qualified: true, threshold: "none", exit: 2, negotiated: true },
+  { kind: "imported", coverage: "complete", qualified: true, threshold: "none", exit: 0 },
+  { kind: "local", coverage: "partial", qualified: true, threshold: "none", exit: 2 },
+  { kind: "local", coverage: "partial", qualified: true, threshold: "blocker", exit: 2 },
+  { kind: "direct", coverage: "complete", qualified: true, threshold: "none", exit: 2, unknownImport: true },
+] as const)("consumes only qualified modifier observations and leaves independent obligations intact (%j)", async scenario => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "lab-f02-playwright-audit-"));
+  try {
+    const target = path.join(workspace, "target");
+    const out = path.join(workspace, "reports");
+    const unknownImport = "unknownImport" in scenario;
+    writePlaywrightContractSource(target, scenario.kind, unknownImport);
+    const negotiated = "negotiated" in scenario;
+    const fixture = playwrightContractFixture(target, path.join(workspace, "kit"), scenario.kind, scenario.coverage,
+      scenario.qualified, false, negotiated);
+    const code = await runAuditCommandFromArgs([
+      "--target", target, "--types", "code-rot", "--include", "tests", "--fail-on", scenario.threshold,
+      "--format", "json", "--out", out,
+    ], { evidenceWorkspace: workspace, kitSourceProviderDependencies: fixture.deps });
+    expect(code).toBe(scenario.exit);
+    expect(fixture.requests.filter(request => request.proof)).toEqual(negotiated && scenario.qualified
+      ? [{ file: playwrightOrigin, page: "0", proof: true }] : []);
+    const receipts = path.join(workspace, "lab-output/evidence");
+    const [id] = fs.readdirSync(receipts);
+    const result = JSON.parse(fs.readFileSync(path.join(receipts, id!, "audit-result.json"), "utf8")).evidence;
+    const modifiers = result.issues.filter((issue: { id: string }) => /:(skip|only)-usage:/.test(issue.id));
+    const complete = scenario.qualified && scenario.coverage === "complete";
+    expect(result.coverage.some((row: { predicate: string; mandatory: boolean }) =>
+      row.predicate === "executable test modifiers" && row.mandatory)).toBe(!complete);
+    const cue = "test-rot:" + playwrightOrigin + ":";
+    if (scenario.kind === "local") {
+      expect(modifiers).toEqual([expect.objectContaining({ id: cue + "only-usage:4", severity: "high", releaseBlocking: true })]);
+    } else {
+      expect(modifiers.map((issue: { id: string }) => issue.id).sort()).toEqual([cue + "only-usage:3", cue + "skip-usage:2"]);
+      expect(modifiers.find((issue: { id: string }) => issue.id === cue + "skip-usage:2")).toMatchObject({
+        severity: "medium",
+        ...(complete && { description: expect.stringContaining("Confirm that the skip call is intentional.") }),
+      });
+    }
+    expect(result.coverage.some((row: { predicate: string; mandatory: boolean }) =>
+      row.predicate === "missing-source-import" && row.mandatory)).toBe(unknownImport);
+  } finally { fs.rmSync(workspace, { recursive: true, force: true }); }
+}, 60_000);
+
 it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
   "runs the managed R3 candidate through the audit command and retains findings at every mandatory-gap threshold",
   async () => {
@@ -530,3 +817,385 @@ it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
     }));
   }, 60_000,
 );
+
+const ordinaryProfile = "js-ts-selected-source-reference-v1";
+
+function ordinaryContractFixture(
+  target: string, workDir: string,
+  contracts: Record<string, { domain: string[]; reference?: string }>,
+  qualified: boolean,
+) {
+  const calls: string[] = [];
+  const digest = (value: Buffer | string) => createHash("sha256").update(value).digest("hex");
+  const deps: KitSourceProviderDependencies = {
+    installedPackageRoot: path.resolve("node_modules/@dailephd/my-dev-kit"),
+    expectation: QUALIFIED_CURRENT_PUBLISHED_KIT,
+    workDir, disableStream: true,
+    testOnlyOrdinarySourceReference: qualified ? true : undefined,
+    runCommand: async options => {
+      const result = await runMeasuredCommand(options);
+      const args = options.args ?? [];
+      const selector = args.indexOf("--audit-import-target");
+      if (!result.ok || selector < 0) return result;
+      const parent = JSON.parse(result.stdout);
+      calls.push(parent.importFactId);
+      const rule = contracts[parent.sourceSpecifier];
+      if (!rule) return result;
+      const artifact = JSON.parse(fs.readFileSync(path.join(args[args.indexOf("--index") + 1]!, "source-audit-evidence.json"), "utf8"));
+      const selected = new Map<string, string | null>(artifact.files.map((file: { path: string; contentSha256: string | null }) =>
+        [file.path, file.contentSha256]));
+      const refs = rule.domain.map(file => ({
+        role: "candidate", path: file, state: selected.has(file) ? "file" : "absent",
+        contentSha256: selected.get(file) ?? null,
+      }));
+      refs.push({ role: "config", path: "tsconfig.json", state: "file", contentSha256: digest(fs.readFileSync(path.join(target, "tsconfig.json"))) });
+      refs.push({ role: "package-metadata", path: "package.json", state: "file", contentSha256: digest(fs.readFileSync(path.join(target, "package.json"))) });
+      refs.push({ role: "path", path: "alternate-config", state: "absent", contentSha256: null });
+      const sourceReferenceProof = {
+        schemaVersion: "1.0.0", profile: ordinaryProfile, pathIdentityProfile: "selected-source-path-v1",
+        snapshotId: parent.snapshotId, selectionFingerprint: artifact.source.selectionFingerprint,
+        selectedDomainDigest: digest(JSON.stringify([...selected.keys()].sort())),
+        originFile: parent.originFile, originContentSha256: selected.get(parent.originFile),
+        importFactId: parent.importFactId, sourceSpecifier: parent.sourceSpecifier,
+        resolutionPlatform: process.platform === "win32" ? "win32" : "posix",
+        candidateEnumerationComplete: true, candidateDomain: rule.domain,
+        qualifiedReference: rule.reference ? { targetPath: rule.reference, targetContentSha256: selected.get(rule.reference),
+          referenceKind: "selected-source-reference" } : null,
+        premiseRefs: refs,
+        reasonCode: null,
+      };
+      return { ...result, stdout: JSON.stringify({ ...parent, sourceReferenceProof, exactSelectedPath: "src/decoy.ts",
+        selectedTargetUpperBound: ["src/decoy.ts"], qualifiedSourceReferencePath: "src/decoy.ts" }) };
+    },
+  };
+  return { deps, calls };
+}
+
+it.each([true, false])("gates ordinary source-reference semantics on fixture qualification (%s)", async qualified => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "lab-f02-ordinary-reader-"));
+  try {
+    const target = path.join(workspace, "target");
+    fs.mkdirSync(path.join(target, "src"), { recursive: true });
+    fs.writeFileSync(path.join(target, "package.json"), '{"name":"ordinary-reader"}');
+    fs.writeFileSync(path.join(target, "tsconfig.json"), '{"compilerOptions":{}}');
+    fs.writeFileSync(path.join(target, "src/entry.ts"), 'export { peer } from "./peer.js";\n');
+    fs.writeFileSync(path.join(target, "src/peer.ts"), "export const peer = 1;\n");
+    const workDir = path.join(workspace, "kit");
+    const fixture = ordinaryContractFixture(target, workDir, {
+      "./peer.js": { domain: ["src/peer.js", "src/peer.ts", "src/peer.tsx"], reference: "src/peer.ts" },
+    }, qualified);
+    let reader: KitSourceReader | undefined;
+    await collectKitSourceFacts({
+      targetRoot: target, inventory: scanProjectInventory(target), requiredPaths: ["src/entry.ts", "src/peer.ts"],
+      requiredCapabilities: [], includeScriptsRoot: false, onReader: value => { reader = value; },
+    }, fixture.deps);
+    try {
+      const [edge] = reader!.reExportTargets?.("src/entry.ts") ?? [];
+      expect(edge).toMatchObject({ sourceSpecifier: "./peer.js" });
+      const read = () => reader!.importTarget(edge!.id);
+      const first = await read();
+      expect(first.exactSelectedPath).toBeUndefined();
+      expect(first.qualifiedSourceReferencePath).toBe(qualified ? "src/peer.ts" : undefined);
+      expect(first.selectedTargetUpperBound).toEqual(qualified ? ["src/peer.ts"] : undefined);
+      if (!qualified) return;
+      for (const [name, change] of [
+        ["tsconfig.json", '{"compilerOptions":{"rootDirs":["src"]}}'],
+        ["package.json", '{"name":"changed"}'],
+        ["src/peer.tsx", "export {};"],
+        ["src/peer.ts", "export const peer = 0;\n"],
+      ]) {
+        const file = path.join(target, name!);
+        const original = fs.existsSync(file) ? fs.readFileSync(file) : null;
+        fs.writeFileSync(file, change!);
+        try { await expect(read()).rejects.toMatchObject({ category: "stale-evidence" }); }
+        finally { if (original) fs.writeFileSync(file, original); else fs.unlinkSync(file); }
+      }
+      const outside = path.join(workspace, "outside");
+      fs.mkdirSync(outside);
+      fs.symlinkSync(outside, path.join(target, "alternate-config"), "junction");
+      await expect(read()).rejects.toMatchObject({ category: "stale-evidence" });
+      expect(fixture.calls).toEqual([edge!.id]);
+    } finally { await reader?.dispose(); }
+  } finally { fs.rmSync(workspace, { recursive: true, force: true }); }
+}, 60_000);
+
+
+it.each([
+  { unknown: false, threshold: "none" },
+  { unknown: true, threshold: "none" },
+  { unknown: true, threshold: "blocker" },
+  { unknown: "other-origin", threshold: "none" },
+])("combines ordinary, re-export and computed bounds while retaining positives (%j)", async ({ unknown, threshold }) => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "lab-f02-ordinary-audit-"));
+  try {
+    const target = path.join(workspace, "target");
+    fs.mkdirSync(path.join(target, "src"), { recursive: true });
+    fs.mkdirSync(path.join(target, "tests"));
+    fs.writeFileSync(path.join(target, "package.json"), '{"name":"ordinary-union","type":"module"}');
+    fs.writeFileSync(path.join(target, "tsconfig.json"), '{"compilerOptions":{}}');
+    for (const name of ["peer.ts", "choice.ts", "choice.tsx", "float.mjs", "other.ts"]) {
+      fs.writeFileSync(path.join(target, "src", name), "export const witness = 1;\n");
+    }
+    fs.writeFileSync(path.join(target, "src/main.ts"), [
+      ...(unknown === true ? ['import "unresolved-alias";'] : []),
+      'import "./peer.js";',
+      'export * from "./choice.js";',
+      'void import(process.env.PROFILE ? "./float.mjs" : "./nowhere.mjs");',
+    ].join("\n"));
+    fs.writeFileSync(path.join(target, "tests/probe.test.mjs"), 'test.only("independent", () => {});\n');
+    if (unknown === "other-origin") fs.writeFileSync(path.join(target, "tests/unknown.test.mjs"), 'export * from "unresolved-alias";');
+    // Unlike the configured ordinary edge, this independent ESM operand is
+    // intentionally finite but lacks a complete destination profile with tsconfig present.
+    // Supply an independent computed wire control below for the unchanged domain reader.
+    const workDir = path.join(workspace, "kit");
+    const fixture = ordinaryContractFixture(target, workDir, {
+      "./peer.js": { domain: ["src/peer.js", "src/peer.ts", "src/peer.tsx"], reference: "src/peer.ts" },
+      "./choice.js": { domain: ["src/choice.js", "src/choice.ts", "src/choice.tsx"] },
+    }, true);
+    const runFixture = fixture.deps.runCommand!;
+    fixture.deps.runCommand = async options => {
+      const result = await runFixture(options);
+      if (!result.ok || !options.args?.includes("--audit-import-domain")) return result;
+      const raw = JSON.parse(result.stdout);
+      if (raw.originFile !== "src/main.ts") return result;
+      for (const alternative of raw.operandAlternatives) {
+        const selected = alternative.specifier === "./float.mjs";
+        alternative.resolution = {
+          status: selected ? "present" : "proven-missing",
+          reasonCode: selected ? "TARGET_IN_SELECTED_INVENTORY" : "ALL_CANDIDATES_ABSENT_IN_COMPLETE_SELECTION",
+          selectionComplete: true, candidateEnumerationComplete: true,
+          candidatePaths: selected ? ["src/float.mjs", "src/float.mts"] : ["src/nowhere.mjs", "src/nowhere.mts"],
+        };
+      }
+      return { ...result, stdout: JSON.stringify(raw) };
+    };
+    const code = await runAuditCommandFromArgs([
+      "--target", target, "--types", "code-rot", "--include", "architecture,tests", "--fail-on", threshold,
+      "--format", "json", "--out", path.join(workspace, "reports"),
+    ], { evidenceWorkspace: workspace, kitSourceProviderDependencies: fixture.deps });
+    const evidence = path.join(workspace, "lab-output/evidence");
+    const [id] = fs.readdirSync(evidence);
+    const result = JSON.parse(fs.readFileSync(path.join(evidence, id!, "audit-result.json"), "utf8")).evidence;
+    const blocked = result.coverage.filter((entry: { predicate: string }) => entry.predicate === "unreferenced-source-file blocked candidate")
+      .map((entry: { source: { identity: string } }) => entry.source.identity);
+    expect(code).toBe(2);
+    expect(result.issues.some((issue: { id: string }) => issue.id.includes("only"))).toBe(true);
+    expect(result.coverage).toContainEqual(expect.objectContaining({
+      predicate: "selected module reference", proof: expect.objectContaining({ references: [expect.any(String), "src/peer.ts"] }),
+    }));
+    expect(blocked).toEqual(expect.arrayContaining(["src/choice.ts", "src/choice.tsx", "src/float.mjs"]));
+    expect(blocked).not.toContain("src/peer.ts");
+    if (unknown) expect(blocked).toContain("src/other.ts");
+    else {
+      expect(blocked).not.toContain("src/other.ts");
+      expect(result.issues).toContainEqual(expect.objectContaining({ id: "dead-code-candidate:unreferenced-source-file:src/other.ts" }));
+    }
+    expect(new Set(fixture.calls).size).toBe(fixture.calls.length);
+  } finally { fs.rmSync(workspace, { recursive: true, force: true }); }
+}, 90_000);
+
+function computedReferenceFixture(target: string, workDir: string, expression: boolean, ordinary = false,
+  entryPath = "src/entry.mjs", targetPath = "src/peer.mjs") {
+  const fixture = ordinaryContractFixture(target, workDir, {}, ordinary);
+  const runLegacy = fixture.deps.runCommand!;
+  const queries: string[] = [];
+  fixture.deps.testOnlyExpressionReference = expression ? true : undefined;
+  fixture.deps.runCommand = async options => {
+    const result = await runLegacy(options);
+    if (!result.ok || !options.args?.includes("--audit-import-domain")) return result;
+    const parent = JSON.parse(result.stdout);
+    if (parent.originFile !== entryPath || parent.operandAlternatives?.length !== 1 ||
+        parent.operandAlternatives[0]?.specifier !== "./peer.mjs") return result;
+    queries.push(parent.importExpressionFactId);
+    const targetContentSha256 = createHash("sha256").update(fs.readFileSync(path.join(target, targetPath))).digest("hex");
+    const expressionReferenceProof = {
+      schemaVersion: "1.0.0", profile: "js-ts-computed-exact-source-reference-v1",
+      expressionFactId: parent.importExpressionFactId, alternativeIndex: 0,
+      specifier: "./peer.mjs", targetPath, targetContentSha256, premiseIndexes: [0, 1],
+      resolutionPremiseRefs: [
+        { role: "candidate", path: targetPath, state: "file", contentSha256: targetContentSha256 },
+        { role: "candidate", path: targetPath.replace(/\.mjs$/, ".mts"), state: "absent", contentSha256: null },
+        ...["jsconfig.json", path.posix.join(path.posix.dirname(entryPath), "jsconfig.json"),
+          path.posix.join(path.posix.dirname(entryPath), "tsconfig.json"), "tsconfig.json"].sort().map(filePath =>
+          ({ role: "config", path: filePath, state: "absent", contentSha256: null })),
+      ],
+    };
+    return { ...result, stdout: JSON.stringify({ ...parent, expressionReferenceProof }) };
+  };
+  return { deps: fixture.deps, queries };
+}
+
+async function testImportAudit(workspace: string, target: string, deps: KitSourceProviderDependencies) {
+  const exit = await runAuditCommandFromArgs([
+    "--target", target, "--types", "code-rot", "--include", "tests", "--fail-on", "none",
+    "--format", "json", "--out", path.join(workspace, "reports"),
+  ], { evidenceWorkspace: workspace, kitSourceProviderDependencies: deps });
+  const receipts = path.join(workspace, "lab-output/evidence");
+  const [id] = fs.readdirSync(receipts);
+  const { evidence } = JSON.parse(fs.readFileSync(path.join(receipts, id!, "audit-result.json"), "utf8"));
+  return { exit, coverage: evidence.coverage as import("../../src/audits/core/auditRegistry.js").AuditPredicateCoverage[],
+    issues: evidence.issues as { id: string }[] };
+}
+
+it("uses ordinary positives and applicable physical absence while preserving bounded ambiguity", async () => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "lab-f02-test-imports-"));
+  try {
+    const target = path.join(workspace, "target");
+    const directory = path.join(target, "tests");
+    const origin = "tests/entry.test.mts";
+    fs.mkdirSync(directory, { recursive: true });
+    fs.writeFileSync(path.join(target, "package.json"), '{"name":"test-imports","type":"module"}');
+    fs.writeFileSync(path.join(target, "tsconfig.json"), '{"compilerOptions":{}}');
+    for (const file of ["peer.mts", "exported.mts", "ambiguous.ts", "ambiguous.tsx", "existence.ts"]) {
+      fs.writeFileSync(path.join(directory, file), "export const witness = 1;\n");
+    }
+    fs.writeFileSync(path.join(target, origin), [
+      'import "./peer.mjs";', 'export { witness } from "./exported.mjs";',
+      'import "./ambiguous.js";', 'import "./existence.js";', 'import "./gone.mjs";', 'import "../excluded/gone.mjs";',
+      'test.only("independent", () => {});',
+    ].join("\n"));
+    const fixture = ordinaryContractFixture(target, path.join(workspace, "kit"), {
+      "./peer.mjs": { domain: ["tests/peer.mjs", "tests/peer.mts"], reference: "tests/peer.mts" },
+      "./exported.mjs": { domain: ["tests/exported.mjs", "tests/exported.mts"], reference: "tests/exported.mts" },
+      "./ambiguous.js": { domain: ["tests/ambiguous.js", "tests/ambiguous.ts", "tests/ambiguous.tsx"] },
+      "./existence.js": { domain: ["tests/existence.js", "tests/existence.ts"] },
+      "./gone.mjs": { domain: ["tests/gone.mjs", "tests/gone.mts"] },
+      "../excluded/gone.mjs": { domain: ["excluded/gone.mjs", "excluded/gone.mts"] },
+    }, true);
+    const result = await testImportAudit(workspace, target, fixture.deps);
+    expect(result.exit).toBe(2);
+    const gaps = result.coverage.filter(row => row.predicate === "missing-source-import" && row.source.identity === origin);
+    expect(gaps).toHaveLength(3);
+    expect(gaps.map(row => row.reason)).toEqual(expect.arrayContaining([
+      expect.stringContaining('./ambiguous.js has a finite selected-target bound'),
+      expect.stringContaining('./existence.js has a finite selected-target bound'),
+      expect.stringContaining('../excluded/gone.mjs has an empty selected-target bound'),
+    ]));
+    expect(result.issues.filter(issue => issue.id.includes(":missing-source-import:")).map(issue => issue.id))
+      .toEqual(["test-rot:" + origin + ":missing-source-import:./gone.mjs"]);
+    expect(result.issues.some(issue => issue.id.endsWith("only-usage:7"))).toBe(true);
+  } finally { fs.rmSync(workspace, { recursive: true, force: true }); }
+}, 60_000);
+
+it.each(["accounted", "runtime", "unaccounted"] as const)(
+  "separates expression destinations from partial inventory accounting (%s)", async scenario => {
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "lab-f02-test-expressions-"));
+    try {
+      const target = path.join(workspace, "target");
+      fs.mkdirSync(path.join(target, "tests"), { recursive: true });
+      const origin = "tests/entry.test.mjs";
+      const positiveOrigin = scenario === "accounted" ? origin : "tests/positive.test.mjs";
+      const positiveLines = ['const exact = "./peer.mjs";', "void import(exact);"];
+      fs.writeFileSync(path.join(target, "package.json"), '{"name":"test-expressions","type":"module"}');
+      fs.writeFileSync(path.join(target, "tests/peer.mjs"), "export {};\n");
+      if (positiveOrigin !== origin) fs.writeFileSync(path.join(target, positiveOrigin), positiveLines.join("\n"));
+      fs.writeFileSync(path.join(target, origin), [
+        ...(positiveOrigin === origin ? positiveLines : []),
+        'void import("./linked-missing.mjs");',
+        'void import("./expression-" + "only.mjs");',
+        ...(scenario === "accounted" ? [] : ['import "./ordinary-missing.mjs";', "void import(process.env.DESTINATION);",
+          'void import(process.env.MODE ? "./peer.mjs" : "./other.mjs");']),
+        ...(scenario === "unaccounted" ? ["require(process.env.DESTINATION);"] : []),
+      ].join("\n"));
+      const fixture = computedReferenceFixture(target, path.join(workspace, "kit"), true, false, positiveOrigin, "tests/peer.mjs");
+      fixture.deps.disableBatch = true; // Supply the independent witness through the fixture's ordinary command seam.
+      const result = await testImportAudit(workspace, target, fixture.deps);
+      expect(result.exit).toBe(scenario === "accounted" ? 0 : 2);
+      const rows = result.coverage.filter(row => row.source.identity === origin && row.capability === "imports");
+      expect(rows.some(row => row.predicate === "imports evidence" && row.status === "QUALIFIED")).toBe(scenario !== "unaccounted");
+      expect(result.coverage.filter(row => row.status === "QUALIFIED" && row.predicate === "missing-source-import"))
+        .toContainEqual(expect.objectContaining({ source: { kind: "file", identity: positiveOrigin },
+          proof: expect.objectContaining({ references: [
+            `audit-fact:${encodeURIComponent(positiveOrigin)}#dynamic-import-expression#2#5#0`, "tests/peer.mjs",
+          ] }) }));
+      const missing = result.issues.filter(issue => issue.id.includes(":missing-source-import:")).map(issue => issue.id).sort();
+      expect(missing).toEqual(["./linked-missing.mjs", ...(scenario === "accounted" ? [] : ["./ordinary-missing.mjs"])]
+        .map(specifier => "test-rot:" + origin + ":missing-source-import:" + specifier));
+      expect(rows).toContainEqual(expect.objectContaining({
+        actualStatus: "disjoint-selected-domain", status: "QUALIFIED", proof: expect.objectContaining({
+          references: [`audit-fact:tests%2Fentry.test.mjs#dynamic-import-expression#${scenario === "accounted" ? 4 : 2}#5#0`],
+        }),
+      }));
+      expect(rows.some(row => row.status === "UNDETERMINED" && row.reason.includes("finite selected-target bound")))
+        .toBe(scenario !== "accounted");
+    } finally { fs.rmSync(workspace, { recursive: true, force: true }); }
+  }, 60_000,
+);
+
+it.each([true, false])("qualifies only the separate expression capability and rechecks cached premises (%s)", async expression => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "lab-f02-expression-reader-"));
+  let reader: KitSourceReader | undefined;
+  try {
+    const target = path.join(workspace, "target");
+    fs.mkdirSync(path.join(target, "src"), { recursive: true });
+    const entry = 'const exact = "./peer.mjs";\nvoid import(exact);\n';
+    fs.writeFileSync(path.join(target, "package.json"), '{"name":"expression-reader","type":"module"}');
+    fs.writeFileSync(path.join(target, "src/entry.mjs"), entry);
+    fs.writeFileSync(path.join(target, "src/peer.mjs"), "export {};\n");
+    const fixture = computedReferenceFixture(target, path.join(workspace, "kit"), expression, true);
+    await collectKitSourceFacts({
+      targetRoot: target, inventory: scanProjectInventory(target), requiredPaths: ["src/entry.mjs", "src/peer.mjs"],
+      requiredCapabilities: [], includeScriptsRoot: false, onReader: value => { reader = value; },
+    }, fixture.deps);
+    expect(reader!.ordinarySourceReference).toBe(true);
+    const read = () => reader!.expressionDomains!("src/entry.mjs");
+    const [domain] = await read();
+    expect(domain!.linkedImportFactId).toBeUndefined();
+    expect(domain!.proof.expressionFactId).toBe("audit-fact:src%2Fentry.mjs#dynamic-import-expression#2#5#0");
+    expect(domain!.proof.positivePaths).toEqual(expression ? ["src/peer.mjs"] : []);
+    expect(domain!.proof.selectedTargetUpperBound).toEqual(["src/peer.mjs"]);
+    expect(domain!.proof).not.toHaveProperty("expressionReferencePremises");
+    if (!expression) return;
+    for (const [name, change] of [
+      ["tsconfig.json", '{"compilerOptions":{}}'],
+      ["src/jsconfig.json", '{"compilerOptions":{}}'],
+      ["src/peer.mts", "export {};"],
+      ["src/peer.mjs", "export const changed = 1;\n"],
+      ["src/entry.mjs", entry + "// changed\n"],
+    ]) {
+      const file = path.join(target, name!);
+      const original = fs.existsSync(file) ? fs.readFileSync(file) : null;
+      fs.writeFileSync(file, change!);
+      try { await expect(read()).rejects.toMatchObject({ category: "stale-evidence" }); }
+      finally { if (original) fs.writeFileSync(file, original); else fs.unlinkSync(file); }
+    }
+    expect(fixture.queries).toEqual([domain!.proof.expressionFactId]);
+  } finally {
+    await reader?.dispose();
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
+}, 60_000);
+
+it.each(["none", "blocker"])("discharges an expression target while an unknown origin keeps a mandatory gap (%s)", async threshold => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "lab-f02-expression-audit-"));
+  try {
+    const target = path.join(workspace, "target");
+    fs.mkdirSync(path.join(target, "src"), { recursive: true });
+    fs.mkdirSync(path.join(target, "tests"));
+    fs.writeFileSync(path.join(target, "package.json"), '{"name":"expression-discharge","type":"module"}');
+    fs.writeFileSync(path.join(target, "src/entry.mjs"), 'const exact = "./peer.mjs";\nvoid import(exact);\n');
+    fs.writeFileSync(path.join(target, "src/peer.mjs"), "export const peer = 1;\n");
+    fs.writeFileSync(path.join(target, "src/unrelated.mjs"), "export const unrelated = 1;\n");
+    fs.writeFileSync(path.join(target, "src/unknown.mjs"), "void import(process.env.DESTINATION);\n");
+    fs.writeFileSync(path.join(target, "tests/probe.test.mjs"), 'test.only("independent", () => {});\n');
+    const fixture = computedReferenceFixture(target, path.join(workspace, "kit"), true);
+    const code = await runAuditCommandFromArgs([
+      "--target", target, "--types", "code-rot", "--include", "architecture,tests", "--fail-on", threshold,
+      "--format", "json", "--out", path.join(workspace, "reports"),
+    ], { evidenceWorkspace: workspace, kitSourceProviderDependencies: fixture.deps });
+    const receipts = path.join(workspace, "lab-output/evidence");
+    const [id] = fs.readdirSync(receipts);
+    const result = JSON.parse(fs.readFileSync(path.join(receipts, id!, "audit-result.json"), "utf8")).evidence;
+    expect(code).toBe(2);
+    expect(result.issues.some((issue: { id: string }) => issue.id.includes("only"))).toBe(true);
+    const blocked = result.coverage.filter((row: { predicate: string }) => row.predicate === "unreferenced-source-file blocked candidate")
+      .map((row: { source: { identity: string } }) => row.source.identity);
+    expect(blocked).toContain("src/unrelated.mjs");
+    expect(blocked).not.toContain("src/peer.mjs");
+    expect(result.coverage).toContainEqual(expect.objectContaining({
+      predicate: "unreferenced-source-file", source: { kind: "file", identity: "src/unknown.mjs" }, mandatory: true,
+    }));
+    expect(result.issues).not.toContainEqual(expect.objectContaining({ id: "dead-code-candidate:unreferenced-source-file:src/peer.mjs" }));
+    expect(fixture.queries).toEqual(["audit-fact:src%2Fentry.mjs#dynamic-import-expression#2#5#0"]);
+  } finally { fs.rmSync(workspace, { recursive: true, force: true }); }
+}, 90_000);

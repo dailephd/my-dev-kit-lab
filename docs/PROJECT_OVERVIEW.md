@@ -46,6 +46,8 @@ Android validation is implemented through `security validate --profile android` 
 
 The generic audit framework provides language-aware `code-rot` detectors for TypeScript/JavaScript, Python, Java, and Kotlin. Its `security` type adapts the standalone validator's results into audit issues while preserving the original `reports/security/` output.
 
+The implemented-unreleased FACTS02 correction qualifies bounded references for each affected predicate. Complete file selection and supported positive evidence can coexist with mandatory gaps. See the [audit evidence boundary](ARCHITECTURE.md#lab-facts-02-extension-boundary).
+
 The `--android` extension maps confirmed Android findings through that same adapter and keeps `CandidateEvidence` separate. Audit remains distinct from both experiments and `security:validate`.
 
 Java/Kotlin support is conservative and static only: no compiler parsing, no type/classpath resolution, and no Gradle/Maven execution. Android validation is likewise static and read-only; see [security-validation-framework.md](security-validation-framework.md) for its full limits.
@@ -174,8 +176,8 @@ The package version is `0.10.0`. Bounded full-refresh reference adequacy improve
 
 The v0.10.0 release preserves LAB-KIT-01 published Kit 1.15.0 reuse, including conservative Rust support, and LAB-EVIDENCE-01 authorized capture/passive import, exact evidence identity, required/optional evaluation and scoped certification. Native producers retain result ownership. Prospective acceptance does not repair original RSP-011 historical loss. See [current state](CURRENT_STATE.md).
 
-### Unreleased partial-source-evidence compatibility
+### Historical partial-source-evidence compatibility
 
-The partial-source-evidence compatibility correction is integrated locally and remains unreleased.
+The historical SW-123 checkpoint recorded the partial-source-evidence compatibility correction in a local checkout.
 
-Its source baseline is published v0.10.0. Qualified partial imports retain diagnostics; independent qualified checks continue, unsupported absence/dead-code conclusions remain unavailable, and mandatory incomplete coverage returns exit 2 even with `--fail-on none`. Current package metadata remains 0.10.0; a prospective patch version does not authorize release preparation. Historical Kit provenance remains a separate mandatory protected gate. Coverage records describe unavailable predicates, not confirmed defects or a scientific score; complete inventory does not imply complete semantic coverage. See [current state](CURRENT_STATE.md#partial-source-evidence-compatibility-correction).
+Its source baseline is published v0.10.0. Qualified partial imports retain diagnostics; independent qualified checks continue, unsupported absence/dead-code conclusions remain unavailable, and mandatory incomplete coverage returns exit 2 even with `--fail-on none`. That checkpoint used package metadata 0.10.0 and reserved a prospective patch version. Historical Kit provenance remains a separate mandatory protected gate. Coverage records describe unavailable predicates, not confirmed defects or a scientific score; complete inventory does not imply complete semantic coverage. See [current state](CURRENT_STATE.md#partial-source-evidence-compatibility-correction).

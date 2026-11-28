@@ -1749,7 +1749,7 @@ Acceptance:
 
 ### v0.10.1 — partial-source-evidence and predicate-coverage correction
 
-Status: **implemented locally and unreleased.** This entry preserves the historical corrective scope. See the coordinated v0.11.0 entry for current acceptance.
+Status: **implemented locally and unreleased.** This entry preserves the historical corrective scope. See the coordinated v0.11.0 entry for the subsequent historical acceptance record.
 
 The candidate inherited from `fix/sw119-r2-v010-partial-evidence` included the bounded SW-118/SW-119 partial JavaScript import correction. Its historical Step 5 full-source audit was **BLOCKED** by qualified partial Kotlin evidence for a Gradle configuration fixture. P3 implemented Gradle configuration roles, per-predicate applicability, authenticated partial-evidence acquisition and capability-independent adapter qualification, with focused tests, typecheck and build passing. At that point the runner had yet to enable the route. The historical plan assigned detector and required-coverage correction to P4, exact Kit package qualification and the production pin transition to P5, and original audit replay to P6. The record preserves the v0.10.1 target patch scope, the v0.10.0 milestone and the earlier v0.11.0 accessibility reservation.
 
@@ -1783,7 +1783,7 @@ The candidate inherited from `fix/sw119-r2-v010-partial-evidence` included the b
 
 ### v0.11.0 — coordinated source-evidence consumer
 
-Status: **final release-document state; formal current-product acceptance passed**.
+Status: **published**. Formal current-product acceptance passed for the recorded implementation candidate.
 
 The local implementation consumes an authenticated Kit producer for source
 identity, exact ESM witnesses, selected-domain proofs and byte evidence.
@@ -1792,8 +1792,7 @@ mandatory incomplete result when source coverage cannot support a required
 predicate. The explicit R3 route has installed evidence on Windows and native
 Linux under their recorded execution identities. Follow the
 [adopted product and target policy](WORKFLOWS.md#coordinated-product-acceptance-and-target-certification).
-The qualified Kit 1.16.0 provider is the pinned production
-dependency. See
+That release pinned the qualified Kit 1.16.0 production dependency. See
 [Commands](COMMANDS.md#managed-audit-with-the-qualified-local-kit-producer)
 and the [historical target outcomes](CURRENT_STATE.md#historical-target-audit-results).
 
@@ -1828,13 +1827,13 @@ Acceptance:
 
 ### v0.11.1 — predicate-scoped audit qualification correction (LAB-FACTS-02)
 
-Status: **planned; not implemented**. Adopted planning reservation, 2026-11-25.
+Status: **Final release-document state.** The corrective-patch allocation is retained for the coordinated evidence correction with additive producer proof interfaces.
 
 Purpose:
 
 * Correct demonstrated residual audit qualification defects across ordinary imports and reverse-reference obligations, supported JavaScript/TypeScript destructured declarations, computed dynamic imports and conditional-test observations, without weakening the fail-closed incomplete-evidence contract. A newer external report explicitly names Kit 1.16.0 / Lab 0.11.0 and reports full requested file selection but incomplete mandatory audit coverage. Authenticate it as a separate current-pair result; do not classify it as merely an older-pair failure. Current Lab already has predicate-scoped acquisition, expression-domain proof consumption, target-scoped positive references, independent findings and explicit mandatory coverage gaps. Neither a historical block nor the newer summary alone assigns a current implementation defect.
 
-First review the retained two-repository architecture report and authenticate historical/current-pair receipts, actual Lab and managed Kit executable/archive/integrity/schema/source-selection identities and the exact target source. Reuse applicable evidence before commissioning a rerun; a dependency declaration is not proof of the executed producer. Reconcile reported gap units and overlaps by origin, target candidate, file, detector, predicate, capability and reason. Freeze the remaining obligations, supported profile and independent oracle before editing. Keep private target identities, source and raw reports local; publish only synthetic fixtures and redacted diagnostics. If current behavior suffices, avoid redundant implementation or release. These patch versions remain conditional; missing capabilities as well as incompatible public contracts require an explicit scope, compatibility and version assessment.
+First review the retained two-repository architecture report and authenticate historical/current-pair receipts, actual Lab and managed Kit executable/archive/integrity/schema/source-selection identities and the exact target source. Reuse applicable evidence before commissioning a rerun; a dependency declaration is not proof of the executed producer. Reconcile reported gap units and overlaps by origin, target candidate, file, detector, predicate, capability and reason. Freeze the remaining obligations, supported profile and independent oracle before editing. Keep private target identities, source and raw reports local; publish only synthetic fixtures and redacted diagnostics. If current behavior suffices, avoid redundant implementation or release. The approved corrective-patch allocations are retained. Exact local pair qualification, coordinated external regression and Step 5 readiness are complete for the validated implementation pair. Independent release preparation precedes admission of the published producer.
 
 Features and ordered work:
 
@@ -1848,7 +1847,10 @@ Features and ordered work:
 8. L08 — Identify each actual conditional-test construct, runner binding and affected test-rot predicate before changing requirements. Consume qualified Kit observations and extend applicability only where demonstrated. Preserve independent raw findings and distinguish observing a skip/only construct from evaluating its runtime condition.
 9. L09 — Investigate reported registry gitHead/tag discrepancies independently of coverage. Compare exact archives, installed CLI hashes, source-preparation evidence, release-tag commits and managed qualification records. Preserve historical identities and independently verify the exact later published pair; no metadata mismatch alone proves the cause of an audit gap.
 
-Investigation order is retained-result authentication, contained retrieval-tool qualification and index preparation, complete obligation accounting, bounded cross-repository retrieval, then Global Planner contract/profile/version and batch decisions. The reported earlier architecture investigation was partial: no installed retrieval executable or repository index was qualified, created or reused. Authenticate its bounded-source witnesses; do not treat the named index destinations as existing artifacts or a registry/lockfile version as an executed producer. Close acquisition/proof validation and pagination, cache reuse/invalidation, detector applicability and reader/writer compatibility before implementation. L07/L08/L09 are explicit additions to the original L01–L06 scope, not already implemented capabilities. Reuse authenticated tools/indexes with their exact original identities and create required indexes only where matching artifacts are absent; retrieve only unresolved witnesses and do not relabel old snapshots after a documentation-only main-branch advance. Read-only architecture retrieval does not require a new worktree. Qualify exact local candidates before any public release dependency.
+10. L10 — Package-context command-reference correction. Correct the authenticated root-only package-command false positives by qualifying supported documented commands against their established package execution context. Preserve genuine missing-script findings, ordinary root behavior, planned-command handling, bounded static inspection and existing audit policies. Package-context qualification uses existing audit inventory membership, physical containment, valid package metadata and bounded explicit command context. Standalone snapshots do not require independent Git metadata. Git classification is used only when genuinely applicable to the audited target.
+11. L11 — Semantic CHANGELOG version-heading correction. Recognize equivalent supported version-section heading formats without accepting version substrings, unrelated prose or incorrect versions as current release sections. Preserve existing package/release checks.
+
+Investigation order is retained-result authentication, contained retrieval-tool qualification and index preparation, complete obligation accounting, bounded cross-repository retrieval, then Global Planner contract/profile/version and batch decisions. The reported earlier architecture investigation was partial: no installed retrieval executable or repository index was qualified, created or reused. Authenticate its bounded-source witnesses; do not treat the named index destinations as existing artifacts or a registry/lockfile version as an executed producer. Close acquisition/proof validation and pagination, cache reuse/invalidation, detector applicability and reader/writer compatibility before implementation. L07/L08/L09 are approved additions to the original L01–L06 scope. The later qualifications also cover bounded Bundler references, explicit modifier negotiation, and scoped raw-only acquisition. Reuse authenticated tools/indexes with their exact original identities and create required indexes only where matching artifacts are absent; retrieve only unresolved witnesses and do not relabel old snapshots after a documentation-only main-branch advance. Read-only architecture retrieval does not require a new worktree. Qualify exact local candidates before any public release dependency.
 
 Acceptance:
 
@@ -1857,13 +1859,17 @@ Acceptance:
 * Conditional-test fixtures reflect actual qualified runner syntax and predicate needs. Syntactic observation does not claim runtime condition truth. Diagnostic tests distinguish absent proof requests, incomplete supported profiles and genuinely unresolved destinations.
 * Baseline/candidate reports account for every mandatory obligation with explicit units, applicability, reason and disposition. Product coverage measures and target certification remain separate. Reconcile archive/executable/tag provenance independently; preserve historical receipts and do not relabel the reporter's finding dispositions as independent adjudication.
 * Stale, missing, malformed, tampered, truncated, incompatible, unselected and genuinely insufficient evidence cannot support an unjustified complete result. No false missing-import, unreferenced/dead-code or duplicate declaration conclusion; no manufactured evidence.
+* All four authenticated package-command false positives are covered by generic synthetic regression cases.
+* Genuine missing commands in root and explicitly selected nested packages remain detectable. Package qualification follows the existing inventory, containment, metadata and explicit-context requirements for both Git-backed targets and standalone snapshots.
+* Equivalent supported CHANGELOG headings qualify only the matching version section.
+* Existing unrelated detector behavior is preserved.
 * Preserve report contracts and current audit flags. Exit 0 means complete and below finding threshold, exit 1 complete with threshold breach, and exit 2 mandatory unavailable coverage or invalid acquisition, including with `--fail-on none`. Natural exit 2 on a deliberately incomplete control is evidence of correct fail-closed behavior, not a product failure or target PASS.
 * Preserve the SW-121 oracle and accepted evidence contracts. Qualify exact packed producer/consumer identities, existing public/protected and security regressions, docs, required native/hosted platforms, independent product readiness and coordinated readiness. Reuse only contract-authorized matching evidence; do not repeat unaffected validation.
 * Replay the full applicable code-rot audit against the original unchanged external candidate when authorized. Preserve historical dispositions and report remaining mandatory gaps honestly. Product acceptance and target certification are distinct; valid target source need not be rewritten to accommodate the validator.
 
 Dependencies and exclusions:
 
-* Conditional producer reservation: Kit v1.16.1 / KIT-FACTS-02. If Kit alone needs correction, qualify consumer dependency migration rather than invent consumer changes. If only Lab needs correction, retain the already qualified producer. If current behavior is sufficient, close the obligation with evidence rather than force a patch. Producer-first publication requires old-reader compatibility; otherwise qualify a dual reader before enabling the new writer. See [coordinated roadmap](https://github.com/dailephd/my-dev-kit/blob/main/docs/ECOSYSTEM_COORDINATED_ROADMAP.md#714-coordinated-source-evidence-corrective-patch--2026-11-25).
+* Coordinated producer reservation: Kit v1.16.1 / KIT-FACTS-02. If Kit alone needs correction, qualify consumer dependency migration rather than invent consumer changes. If only Lab needs correction, retain the already qualified producer. If current behavior is sufficient, close the obligation with evidence rather than force a patch. Producer-first publication requires old-reader compatibility; otherwise qualify a dual reader before enabling the new writer. See [coordinated roadmap](https://github.com/dailephd/my-dev-kit/blob/main/docs/ECOSYSTEM_COORDINATED_ROADMAP.md#714-coordinated-source-evidence-corrective-patch--2026-11-25).
 * Preserve v0.12.0 LAB-WEBSEC-01 and later assurance milestones, the v0.19.0 binary/context and Python relative-import allocation, and release-unallocated LAB-A11Y-01. General runtime/build-dependent resolution remains deferred. No target execution or source rewrite, parallel evidence pipeline, version bump, release preparation, merge, tag or publication is authorized by this planning entry.
 
 ### v0.12.0 — local web-application security assurance (LAB-WEBSEC-01)
