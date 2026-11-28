@@ -971,8 +971,8 @@ The standalone prompt comparison reports matched first-attempt invalid-output ra
 No matched paid Codex/Claude smoke was authorized. Observed invalid-output-rate improvement remains **NOT_VERIFIED** and must not be claimed. The v0.9.3 release gate covers reproducible prompt-contract classification, trustworthy run-bound identity, matched comparison eligibility/denominators, and report correctness; real-provider effectiveness is a separate, opt-in empirical objective, not a readiness dependency. Prompt comparison capability alone does not demonstrate improvement.
 
 
-### Unreleased partial-source-evidence compatibility
+### Historical partial-source-evidence compatibility
 
-The partial-source-evidence compatibility correction is integrated locally and remains unreleased.
+The historical SW-123 checkpoint recorded the partial-source-evidence compatibility correction in a local checkout.
 
-Its source baseline is published v0.10.0. Qualified partial imports retain diagnostics; independent qualified checks continue, unsupported absence/dead-code conclusions remain unavailable, and mandatory incomplete coverage returns exit 2 even with `--fail-on none`. Current package metadata remains 0.10.0; a prospective patch version does not authorize release preparation. Historical Kit provenance remains a separate mandatory protected gate. Coverage records describe unavailable predicates, not confirmed defects or a scientific score; complete inventory does not imply complete semantic coverage. See [current state](CURRENT_STATE.md#partial-source-evidence-compatibility-correction).
+Its source baseline is published v0.10.0. Qualified partial imports retain diagnostics; independent qualified checks continue, unsupported absence/dead-code conclusions remain unavailable, and mandatory incomplete coverage returns exit 2 even with `--fail-on none`. That checkpoint used package metadata 0.10.0 and reserved a prospective patch version. Historical Kit provenance remains a separate mandatory protected gate. Coverage records describe unavailable predicates, not confirmed defects or a scientific score; complete inventory does not imply complete semantic coverage. See [current state](CURRENT_STATE.md#partial-source-evidence-compatibility-correction).

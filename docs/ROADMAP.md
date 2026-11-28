@@ -1749,7 +1749,7 @@ Acceptance:
 
 ### v0.10.1 — partial-source-evidence and predicate-coverage correction
 
-Status: **implemented locally and unreleased.** This entry preserves the historical corrective scope. See the coordinated v0.11.0 entry for current acceptance.
+Status: **implemented locally and unreleased.** This entry preserves the historical corrective scope. See the coordinated v0.11.0 entry for the subsequent historical acceptance record.
 
 The candidate inherited from `fix/sw119-r2-v010-partial-evidence` included the bounded SW-118/SW-119 partial JavaScript import correction. Its historical Step 5 full-source audit was **BLOCKED** by qualified partial Kotlin evidence for a Gradle configuration fixture. P3 implemented Gradle configuration roles, per-predicate applicability, authenticated partial-evidence acquisition and capability-independent adapter qualification, with focused tests, typecheck and build passing. At that point the runner had yet to enable the route. The historical plan assigned detector and required-coverage correction to P4, exact Kit package qualification and the production pin transition to P5, and original audit replay to P6. The record preserves the v0.10.1 target patch scope, the v0.10.0 milestone and the earlier v0.11.0 accessibility reservation.
 
@@ -1792,8 +1792,7 @@ mandatory incomplete result when source coverage cannot support a required
 predicate. The explicit R3 route has installed evidence on Windows and native
 Linux under their recorded execution identities. Follow the
 [adopted product and target policy](WORKFLOWS.md#coordinated-product-acceptance-and-target-certification).
-The qualified Kit 1.16.0 provider is the pinned production
-dependency. See
+That release pinned the qualified Kit 1.16.0 production dependency. See
 [Commands](COMMANDS.md#managed-audit-with-the-qualified-local-kit-producer)
 and the [historical target outcomes](CURRENT_STATE.md#historical-target-audit-results).
 

@@ -1174,7 +1174,7 @@ npm run audit -- --target /path/to/android/project --types security --android --
 ## v0.10.0 public and protected verification lanes
 
 `npm run test:public` runs the public lane against the pinned published Kit
-provider (1.16.0 for the v0.11.0 candidate), public schemas,
+provider (1.16.1 for Lab v0.11.1 and 1.16.0 for the historical v0.11.0 candidate), public schemas,
 and the committed 150-decision oracle. Historical producer differential and
 reader-replacement suites are assigned to the separate mandatory protected
 lane; they are not reported as passed or optional skips by public CI.
@@ -1243,19 +1243,18 @@ The source-checkout verifier collects finite public/current-protected/platform/p
 An exact qualified Kit profile can supply the optional schema 1.2.0 direct
 modifier completeness claim. Lab uses that claim for the direct executable
 `.skip` and `.only` predicate after exact-file identity and fact-page validation.
-The broader observation family can remain partial. The prospective provider
-migration binds current acceptance to exact published Kit 1.16.0 while retaining
-the original authorization and historical Kit 1.15.0 evidence. The verifier
-requires the six qualified incomplete fixtures to retain their exact mandatory
-gaps and natural exit 2. The other fixtures require complete coverage. It
-independently replays the affected fixtures and authenticates the JVM proofs
-and direct modifier controls.
+The broader observation family can remain partial. The historical v0.11.0 provider
+migration bound its prospective acceptance to exact published Kit 1.16.0 while retaining
+the original authorization and historical Kit 1.15.0 evidence. That scope required six qualified incomplete fixtures to retain their exact mandatory
+gaps and natural exit 2, and complete coverage for the other fixtures. The verifier
+independently replayed the affected fixtures and authenticated the JVM proofs
+and direct modifier controls. Lab v0.11.1 uses the separately qualified registry Kit 1.16.1 scope, which records four mandatory gaps across three finite fixture groups and preserves the 150-decision historical oracle and its fixture hashes.
 
 Collect and independently verify the protected lane before starting the
 canonical public lane. A protected failure pauses dependent expensive work.
 Reuse canonical public and packed executions for readiness and final binding.
 
-The current route remains **BLOCKED_REQUIRED_EVIDENCE** until its complete public, current-protected, package, native platform and independent binding requirements pass. The local original historical gate remains available unchanged. Historical provenance stays **UNVERIFIED**; original private verification and original readiness binding stay **NOT_PASSED**. LAB-EVIDENCE-01 adoption does not substitute for this contract. Current acceptance establishes neither Step 5 readiness nor publication authority.
+At SW-121 authorization the route recorded **BLOCKED_REQUIRED_EVIDENCE**. The [historical v0.11.0 record](CURRENT_STATE.md#v0110-source-evidence-and-current-product-acceptance) records the later pass for that candidate. Each applicable route requires complete public, current-protected, package, native platform and independent binding evidence. The local original historical gate remains available unchanged. Historical provenance stays **UNVERIFIED**; original private verification and original readiness binding stay **NOT_PASSED**. LAB-EVIDENCE-01 adoption does not substitute for this contract. Current acceptance establishes neither Step 5 readiness nor publication authority.
 
 ## Coordinated product acceptance and target certification
 
@@ -1281,7 +1280,7 @@ contract. Mandatory incomplete coverage returns exit 2. A complete audit
 still applies its existing exit 0/1 severity threshold. Both historical
 targets remain uncertified.
 
-After documentation reconciliation, freeze the clean committed candidates.
+For the historical Kit 1.16.0 and Lab 0.11.0 transition, the documented sequence began by freezing clean committed candidates after documentation reconciliation.
 Use the SW-121 current public collector as the canonical complete Lab public
 execution. Use its protected and packed lanes and independently bind the
 required receipts and hosted native cells. The same authenticated packed
@@ -1295,7 +1294,7 @@ production dependency and qualifying Lab publication.
 
 ## Coordinated binding and computed-import correction
 
-Follow the [v0.11.1 roadmap](ROADMAP.md#v0111--predicate-scoped-audit-qualification-correction-lab-facts-02) and the current [managed audit command](COMMANDS.md#managed-audit-with-the-qualified-local-kit-producer). Lab 0.11.1 integrates the correction. Steps 1–3 below describe the completed implementation-stage process. Step 4 documentation reconciliation and exact-pair Step 5 readiness are complete. Step 6A prepares Lab metadata and documentation on a separate local branch while keeping the Kit 1.16.0 pin. Step 6B authenticates and admits the registry producer, binds final validation to the resulting candidate, and qualifies the publication archive.
+Follow the [v0.11.1 roadmap](ROADMAP.md#v0111--predicate-scoped-audit-qualification-correction-lab-facts-02) and the current [managed audit command](COMMANDS.md#managed-audit-with-the-qualified-local-kit-producer). Lab 0.11.1 integrates the correction. Steps 1–3 below describe the completed implementation-stage process. Step 4 documentation reconciliation and exact-pair Step 5 readiness are complete. Step 6A prepared Lab metadata and documentation while keeping the Kit 1.16.0 pin. Step 6B authenticated and admitted the registry Kit 1.16.1 producer, bound final validation to the resulting candidate, and qualified its archive.
 
 1. Authenticate original local receipts, actual producer and source selection, then reproduce against the current qualified pair and independent synthetic oracle. Private target evidence stays local. Distinguish unsupported proof from a demonstrated defect; if existing behavior suffices, avoid redundant patch work.
 2. Freeze affected detector/predicate responsibilities, owner/test paths, prerequisites, acceptance matrix, compatibility and resource budgets. Use targeted Kit retrieval and direct implementation by default; full stage context only for an actual unresolved architecture conflict or prior failure requiring it.
